@@ -1,8 +1,9 @@
-#!/usr/bin/env python3
 import os
 import sys
 import re
 import collections
+import itertools
+import logging
 
 
 class OrderedSet(collections.MutableSet):
@@ -74,27 +75,70 @@ def read_dic(pdic):
     return dic
 
 
+def isListEmpty(inList):
+    if isinstance(inList, list):
+        return all( map(isListEmpty, inList) )
+    return False
+
+
+def partial_trans(mention, dic):
+    res = []
+    trans_toks = []
+    for tok in mention.split(' '):
+        if tok in dic:
+            trans_toks.append([list(dic[tok])[0]])
+        else:
+            trans_toks.append([])
+
+    if not isListEmpty(trans_toks):
+        for n in range(len(trans_toks)):
+            if not trans_toks[n]:
+                trans_toks[n] = ['NULL']
+        for i in list(itertools.product(*trans_toks)):
+            res.append(' '.join(i))
+        return '*' + '|'.join(res)
+    return None
+
+
 def main(pdic, ptab, outpath):
+    logger.info('loading dict...')
     dic = read_dic(pdic)
+    logger.info('dict size: %s' % len(dic))
+
+    count = {
+        'tol': 0,
+        'trans': 0
+    }
     out = open(outpath, 'w')
-    n = 0
     for line in open(ptab):
         tmp = line.rstrip('\n').split('\t')
         mention = tmp[2]
-        trans = 'NULL'
+        trans = None
         if mention in dic:
             trans = '|'.join(dic[mention])
+        else:
+            trans = partial_trans(mention, dic)
+        if not trans:
+            trans = 'NULL'
+        else:
+            count['trans'] += 1
+        count['tol'] += 1
+
         tmp.append(trans)
         out.write('\t'.join(tmp) + '\n')
-        if trans != 'NULL':
-            n += 1
-    print(n)
+
+    logger.info('# of translated mentions: %s' % count['trans'])
+    logger.info('# of total mentions: %s' % count['tol'])
 
 
 if __name__ == '__main__':
     if len(sys.argv) != 4:
-        print('USAGE: python foo.py <path to dic file> <path to tab> <output path>')
+        print('USAGE: python foo.py <path to dic> <path to tab> <output path>')
         sys.exit()
+
+    logger = logging.getLogger()
+    logging.basicConfig(format='%(asctime)s: %(levelname)s: %(message)s')
+    logging.root.setLevel(level=logging.INFO)
 
     pdic = sys.argv[1]
     ptab = sys.argv[2]
