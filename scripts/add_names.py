@@ -1,108 +1,14 @@
 import re
 import sys
 import logging
-from collections import defaultdict
 import argparse
+import util
+from util import TacTab
+
 
 logger = logging.getLogger()
 logging.basicConfig(format='%(asctime)s: %(levelname)s: %(message)s')
 logging.root.setLevel(level=logging.INFO)
-
-
-class TacTab(object):
-    def __init__(self, runid, qid, mention, offset, kbid, etype, mtype, conf,
-                 trans=None):
-        self.runid = runid
-        self.qid = qid
-        self.mention = mention
-        self.offset = offset
-        self.docid = re.match('(.+):(\d+)-(\d+)', offset).group(1)
-        self.beg = int(re.match('(.+):(\d+)-(\d+)', offset).group(2))
-        self.end = int(re.match('(.+):(\d+)-(\d+)', offset).group(3))
-        self.kbid = kbid
-        self.etype = etype
-        self.mtype = mtype
-        self.conf = conf
-        self.trans = trans
-
-    def __str__(self):
-        return '\t'.join([self.runid, self.qid, self.mention, self.offset,
-                          self.kbid, self.etype, self.mtype, self.conf])
-
-def read_tab(ptab):
-    res = []
-    with open(ptab, 'r') as f:
-        for line in f:
-            res.append(TacTab(*line.rstrip('\n').split('\t')))
-    return res
-
-
-def read_psm(ppsm):
-    res = defaultdict(set)
-    with open(ppsm, 'r') as f:
-        for line in f:
-            tmp = line.rstrip('\n').split('\t')
-            if tmp[0] == 'post':
-                docid = tmp[1]
-                poster = tmp[4]
-                res[docid].add(poster)
-    return res
-
-
-def read_bio(pbio):
-    res = defaultdict(list)
-    data = re.split('\n\s*\n', open(pbio).read())
-    for i in data:
-        sent = i.split('\n')
-        for i, line in enumerate(sent):
-            if not line:
-                continue
-            ann = line.split(' ')
-            try:
-                assert len(ann) >= 2
-            except AssertionError:
-                logger.error('line is less than two columns')
-                logger.error(repr(line))
-            tok = ann[0]
-            offset = ann[1]
-            m = re.match('(.+):(\d+)-(\d+)', offset)
-            docid = m.group(1)
-            beg = int(m.group(2))
-            end = int(m.group(3))
-            res[docid].append((tok, beg, end))
-    return res
-
-
-def get_tab_in_doc_level(tab):
-    res = defaultdict(list)
-    for i in tab:
-        res[i.docid].append(i)
-    return res
-
-
-def read_gaz(pgaz):
-    res = {}
-    res_tree = {}
-    with open(pgaz, 'r') as f:
-        for line in f:
-            tmp = line.rstrip('\n').split('\t')
-            mention = tmp[0]
-            etype = tmp[1]
-            if len(tmp) > 2:
-                add_info = tmp[2]
-            else:
-                add_info = None
-            if mention in res:
-                assert res[mention][0] == etype
-            res[mention] = (etype, add_info)
-
-            toks = mention.split(' ')
-            tree = res_tree
-            for tok in toks:
-                if tok not in tree:
-                    tree[tok] = {}
-                tree = tree[tok]
-    return res, res_tree
 
 
 def add_poster_author(bio, psm):
@@ -153,65 +59,92 @@ def add_gazetteer(bio, gaz, gaz_tree):
                     mtype = 'NAM'
                     conf = '1.0'
                     trans = gaz[mention][1]
-                    res.append(TacTab('Gazetterr', qid, tok, offset, kbid,
+                    res.append(TacTab('Gazetterr', qid, mention, offset, kbid,
                                       etype, mtype, conf, trans=trans))
                     count += 1
     return res
 
 
-
-
-def check_overlap(main_tab, added_tab):
+def check_conflict(main_tab, added_tab, trust_new=False, verbose=False):
     duplicate_tab = []
     overlapped_tab = []
     checked_tab = []
-    main_tab_doc = get_tab_in_doc_level(main_tab)
+    logger.info('checking conflicted names...')
+    main_tab_doc = util.get_tab_in_doc_level(main_tab)
     for i in added_tab:
         overlapped = False
         for j in main_tab_doc[i.docid]:
             if (i.beg, i.end) == (j.beg, j.end):
-                duplicate_tab.append(i)
+                duplicate_tab.append((i, j))
                 overlapped = True
                 break
             if j.beg <= i.beg <= j.end:
-                overlapped_tab.append(i)
+                overlapped_tab.append((i, j))
                 overlapped = True
                 break
             elif j.beg <= i.end <= j.end:
-                overlapped_tab.append(i)
+                overlapped_tab.append((i, j))
                 overlapped = True
                 break
         if not overlapped:
             checked_tab.append(i)
-    return checked_tab, duplicate_tab, overlapped_tab
+
+    logger.info('# of duplicate names: %s' % (len(duplicate_tab)))
+    logger.info('# of overlapped names: %s' % (len(overlapped_tab)))
+    if trust_new:
+        logger.info('  trust new names')
+        new_main_tab = []
+        to_add = [i[0] for i in overlapped_tab]
+        to_remove = [i[1] for i in overlapped_tab]
+        if verbose:
+            for i, j in overlapped_tab:
+                logger.info('%s %s -> %s %s' % (j.mention, j.trans,
+                                                i.mention, i.trans))
+        for i in main_tab:
+            if i not in to_remove:
+                new_main_tab.append(i)
+        logger.info('  # of names revised: %s' % (len(to_add)))
+        logger.info('  # of names added: %s' % (len(checked_tab)))
+        logger.info('  # of total: %s' % (len(checked_tab) + len(to_add)))
+        new_main_tab += to_add
+        new_main_tab += checked_tab
+        return new_main_tab
+    else:
+        logger.info('  trust original names')
+        logger.info('# of names added: %s' % len(checked_tab))
+        main_tab += checked_tab
+        return main_tab
+
+
+def revise_etype(tab, gaz):
+    count = 0
+    for i in tab:
+        if i.mention in gaz and i.etype != gaz[i.mention][0]:
+            i.etype = gaz[i.mention][0]
+            count += 1
+    logger.info('# of revised etypes: %s' % count)
 
 
 def process(tab, pbio, outpath=None, ppsm=None, pgaz=None):
-    bio = read_bio(pbio)
+    bio = util.read_bio(pbio)
+    logger.info('ADDING NAMES...')
 
-    # if ppsm:
-    #     psm = read_psm(ppsm)
-    #     added_tab = add_poster_author(bio, psm)
-    #     logger.info('%s df poster authors found' % (len(added_tab)))
-    #     logger.info('checking overlapped mentions...')
-    #     r = check_overlap(tab, added_tab)
-    #     checked_tab, duplicate_tab, overlapped_tab = r
-    #     logger.info('duplicate mentions: %s' % (len(duplicate_tab)))
-    #     logger.info('overlapped mentions: %s' % (len(overlapped_tab)))
-    #     logger.info('%s df poster authors added' % (len(checked_tab)))
-    #     tab += checked_tab
+    if ppsm:
+        logger.info('ADDING df poster authors...')
+        psm = util.read_psm(ppsm)
+        added_tab = add_poster_author(bio, psm)
+        logger.info('# of df poster authors found: %s' % (len(added_tab)))
+        tab = check_conflict(tab, added_tab, trust_new=True)
 
     if pgaz:
-        gaz, gaz_tree = read_gaz(pgaz)
+        logger.info('ADDING gazetterrs...')
+        gaz, gaz_tree = util.read_gaz(pgaz)
         added_tab = add_gazetteer(bio, gaz, gaz_tree)
-        logger.info('%s gaz names found' % (len(added_tab)))
-        logger.info('checking overlapped mentions...')
-        r = check_overlap(tab, added_tab)
-        checked_tab, duplicate_tab, overlapped_tab = r
-        logger.info('duplicate mentions: %s' % (len(duplicate_tab)))
-        logger.info('overlapped mentions: %s' % (len(overlapped_tab)))
-        logger.info('%s gaz names added' % (len(checked_tab)))
-        tab += checked_tab
+        logger.info('# of gaz names found: %s' % (len(added_tab)))
+        tab = check_conflict(tab, added_tab, trust_new=True, verbose=False)
+
+        logger.info('REVISING entity types...')
+        revise_etype(tab, gaz)
 
     if outpath:
         with open(outpath, 'w') as fw:
@@ -229,7 +162,7 @@ if __name__ == '__main__':
     parser.add_argument('--pgaz', type=str, help='path to gaz')
     args = parser.parse_args()
 
-    tab = read_tab(args.ptab)
+    tab = util.read_tab(args.ptab)
     process(tab, args.pbio,
             ppsm=args.ppsm, pgaz=args.pgaz,
             outpath=args.outpath)

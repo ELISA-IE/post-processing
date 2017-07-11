@@ -3,6 +3,7 @@ import sys
 import logging
 import string
 import argparse
+import util
 from collections import defaultdict
 
 
@@ -12,51 +13,14 @@ logging.root.setLevel(level=logging.INFO)
 LONG_NAME_THRES = 10
 
 
-class TacTab(object):
-    def __init__(self, runid, qid, mention, offset, kbid, etype, mtype, conf):
-        self.runid = runid
-        self.qid = qid
-        self.mention = mention
-        self.offset = offset
-        self.docid = re.match('(.+):(\d+)-(\d+)', offset).group(1)
-        self.beg = int(re.match('(.+):(\d+)-(\d+)', offset).group(2))
-        self.end = int(re.match('(.+):(\d+)-(\d+)', offset).group(3))
-        self.kbid = kbid
-        self.etype = etype
-        self.mtype = mtype
-        self.conf = conf
-
-    def __str__(self):
-        return '\t'.join([self.runid, self.qid, self.mention, self.offset,
-                          self.kbid, self.etype, self.mtype, self.conf])
-
-def read_tab(ptab):
-    tab = []
-    with open(ptab, 'r') as f:
-        for line in f:
-            tab.append(TacTab(*line.rstrip('\n').split('\t')))
-    return tab
-
-
-def read_psm(ppsm):
-    res = defaultdict(set)
-    with open(ppsm, 'r') as f:
-        for line in f:
-            tmp = line.rstrip('\n').split('\t')
-            if tmp[0] == 'post':
-                docid = tmp[1]
-                poster = tmp[4]
-                res[docid].add(poster)
-    return res
-
-
 def process(tab, outpath=None, ppsm=None, verbose=True):
     new_tab = []
-    histories = []
+    histories = defaultdict(int)
     psm = None
     if ppsm:
-        psm = read_psm(ppsm)
+        psm = util.read_psm(ppsm)
 
+    logger.info('REMOVING NAMES...')
     for i in tab:
         remove = False
 
@@ -65,7 +29,8 @@ def process(tab, outpath=None, ppsm=None, verbose=True):
             if psm and i.docid in psm and i.mention in psm[i.docid]:
                 pass
             else:
-                histories.append(('IS_DIGITS', i))
+                his = 'IS_DIGITS %s | %s' % (i.mention, i.etype)
+                histories[his] += 1
                 remove = True
                 continue
 
@@ -73,13 +38,15 @@ def process(tab, outpath=None, ppsm=None, verbose=True):
         translation = str.maketrans('', '', string.punctuation);
         s = i.mention.translate(translation)
         if s == '':
-            histories.append(('IS_PUNCT', i))
+            his = 'IS_PUNCT %s | %s' % (i.mention, i.etype)
+            histories[his] += 1
             remove = True
             continue
 
         # 3. Contains HTTP
         if re.search('http', i.mention):
-            histories.append(('HAS_HTTP', i))
+            his = 'HAS_HTTP %s | %s' % (i.mention, i.etype)
+            histories[his] += 1
             remove = True
             continue
 
@@ -88,22 +55,26 @@ def process(tab, outpath=None, ppsm=None, verbose=True):
             if psm and i.docid in psm and i.mention in psm[i.docid]:
                 pass
             else:
-                histories.append(('HAS_DIGITS', i))
+                his = 'HAS_DIGITS %s | %s' % (i.mention, i.etype)
+                histories[his] += 1
                 remove = True
                 continue
 
         # 5. Long names
         if len(i.mention.split()) >= LONG_NAME_THRES:
-            histories.append(('IS_LONG(%s)' % LONG_NAME_THRES, i))
+            his = 'IS_LONG(%s) %s | %s' % (LONG_NAME_THRES, i.mention, i.etype)
+            histories[his] += 1
             remove = True
             continue
 
-        # 0. Hard rules
+        # 0. Rules
         if re.search('\d+\:\d+|\d+\:\d+\:\d+', i.mention):
-            histories.append(('HARD_RULE', i))
+            his = 'RULE %s | %s' % (i.mention, i.etype)
+            histories[his] += 1
             remove = True
         if re.search('.+\.jpg', i.mention):
-            histories.append(('HARD_RULE', i))
+            his = 'RULE %s | %s' % (i.mention, i.etype)
+            histories[his] += 1
             remove = True
 
         if not remove:
@@ -111,8 +82,8 @@ def process(tab, outpath=None, ppsm=None, verbose=True):
 
     if verbose:
         logger.info('%s names are removed' % len(histories))
-        for r, i in sorted(histories, key=lambda x: x[0]):
-            logger.info('%s\t%s\t%s\t%s' % (r, i.etype, i.offset, i.mention))
+        for i, c in sorted(histories.items(), key=lambda x: x[1], reverse=True):
+            logger.info('%s %s' % (c, i))
 
     if outpath:
         with open(outpath, 'w') as fw:
@@ -128,5 +99,5 @@ if __name__ == '__main__':
     parser.add_argument('--ppsm', type=str, help='path to psm')
     args = parser.parse_args()
 
-    tab = read_tab(args.ptab)
+    tab = util.read_tab(args.ptab)
     process(tab, outpath=args.outpath, ppsm=args.ppsm)
