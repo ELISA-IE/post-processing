@@ -1,83 +1,33 @@
 import os
 import sys
 import re
-import collections
+from collections import defaultdict
 import itertools
 import logging
 
 
-class OrderedSet(collections.MutableSet):
-    def __init__(self, iterable=None):
-        self.end = end = []
-        end += [None, end, end]
-        self.map = {}
-        if iterable is not None:
-            self |= iterable
-
-    def __len__(self):
-        return len(self.map)
-
-    def __contains__(self, key):
-        return key in self.map
-
-    def add(self, key):
-        if key not in self.map:
-            end = self.end
-            curr = end[1]
-            curr[2] = end[1] = self.map[key] = [key, curr, end]
-
-    def discard(self, key):
-        if key in self.map:
-            key, prev, next = self.map.pop(key)
-            prev[2] = next
-            next[1] = prev
-
-    def __iter__(self):
-        end = self.end
-        curr = end[2]
-        while curr is not end:
-            yield curr[0]
-            curr = curr[2]
-
-    def __reversed__(self):
-        end = self.end
-        curr = end[1]
-        while curr is not end:
-            yield curr[0]
-            curr = curr[1]
-
-    def pop(self, last=True):
-        if not self:
-            raise KeyError('set is empty')
-        key = self.end[1][0] if last else self.end[2][0]
-        self.discard(key)
-        return key
-
-    def __repr__(self):
-        if not self:
-            return '%s()' % (self.__class__.__name__,)
-        return '%s(%r)' % (self.__class__.__name__, list(self))
-
-    def __eq__(self, other):
-        if isinstance(other, OrderedSet):
-            return len(self) == len(other) and list(self) == list(other)
-        return set(self) == set(other)
+logger = logging.getLogger()
+logging.basicConfig(format='%(asctime)s: %(levelname)s: %(message)s')
+logging.root.setLevel(level=logging.INFO)
 
 
 def read_dic(pdic):
-    dic = {}
+    RE_STRIP = r' \([^)]*\)|\<[^)]*\>|,|"|\.|\'|:|-'
+    res = defaultdict(lambda : defaultdict(int))
     with open(pdic, 'r') as f:
         for line in f:
-            tmp = line.rstrip('\n').split('\t')
-            if tmp[0] not in dic:
-                dic[tmp[0]] = OrderedSet()
-            dic[tmp[0]].add(tmp[1])
-    return dic
+            src, trg = line.rstrip('\n').split('\t')
+            # trg = ' '.join(re.sub(RE_STRIP, '', trg).strip().split())
+            res[src][trg] += 1
+    for i in res:
+        res[i] = [x for x, y in sorted(res[i].items(),
+                                       key=lambda x: x[1], reverse=True)]
+    return res
 
 
 def isListEmpty(inList):
     if isinstance(inList, list):
-        return all( map(isListEmpty, inList) )
+        return all(map(isListEmpty, inList))
     return False
 
 
@@ -100,7 +50,7 @@ def partial_trans(mention, dic):
     return None
 
 
-def main(pdic, ptab, outpath):
+def main(pdic, tab, outpath=None):
     logger.info('loading dict...')
     dic = read_dic(pdic)
     logger.info('dict size: %s' % len(dic))
@@ -109,8 +59,10 @@ def main(pdic, ptab, outpath):
         'tol': 0,
         'trans': 0
     }
-    out = open(outpath, 'w')
-    for line in open(ptab):
+
+    for i, line in enumerate(tab):
+        if not line:
+            continue
         tmp = line.rstrip('\n').split('\t')
         mention = tmp[2]
         trans = None
@@ -125,22 +77,25 @@ def main(pdic, ptab, outpath):
         count['tol'] += 1
 
         tmp.append(trans)
-        out.write('\t'.join(tmp) + '\n')
+        tab[i] = '\t'.join(tmp)
 
     logger.info('# of translated mentions: %s' % count['trans'])
     logger.info('# of total mentions: %s' % count['tol'])
 
+    if outpath:
+        with open(outpath, 'w') as fw:
+            fw.write('\n'.join(tab))
+    else:
+        return tab
+
 
 if __name__ == '__main__':
     if len(sys.argv) != 4:
-        print('USAGE: python foo.py <path to dic> <path to tab> <output path>')
+        print('USAGE: <path to dict> <path to tab> <output path>')
         sys.exit()
-
-    logger = logging.getLogger()
-    logging.basicConfig(format='%(asctime)s: %(levelname)s: %(message)s')
-    logging.root.setLevel(level=logging.INFO)
 
     pdic = sys.argv[1]
     ptab = sys.argv[2]
     outpath = sys.argv[3]
-    main(pdic, ptab, outpath)
+    tab = open(ptab, 'r').read().split('\n')
+    main(pdic, tab, outpath)
