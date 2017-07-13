@@ -91,7 +91,7 @@ def read_gaz(pgaz):
                 assert res[mention][0] == etype
             res[mention] = (etype, add_info)
 
-            toks = mention.split(' ')
+            toks = mention.split(' ') # TO-DO: no space langs
             tree = res_tree
             for tok in toks:
                 if tok not in tree:

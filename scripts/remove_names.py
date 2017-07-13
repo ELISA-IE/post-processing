@@ -20,7 +20,7 @@ def process(tab, outpath=None, ppsm=None, verbose=True):
     if ppsm:
         psm = util.read_psm(ppsm)
 
-    logger.info('REMOVING NAMES...')
+    logger.info('--- REMOVING NAMES ---')
     for i in tab:
         remove = False
 
@@ -83,7 +83,7 @@ def process(tab, outpath=None, ppsm=None, verbose=True):
     if verbose:
         logger.info('%s names are removed' % len(histories))
         for i, c in sorted(histories.items(), key=lambda x: x[1], reverse=True):
-            logger.info('%s %s' % (c, i))
+            logger.info('%s: %s' % (c, i))
 
     if outpath:
         with open(outpath, 'w') as fw:

@@ -16,7 +16,7 @@ def process(tab, prule, outpath=None, verbose=True):
     new_tab = []
     count = defaultdict(int)
     histories = defaultdict(int)
-    logger.info('APPLYING RULES...')
+    logger.info('--- APPLYING RULES ---')
     rule = util.read_rule(prule)
     for i in tab:
         rm = False
@@ -28,8 +28,8 @@ def process(tab, prule, outpath=None, verbose=True):
             elif op[0] == 'rm':
                 rm = True
             count[op[0]] += 1
-            his = '%s %s | %s | %s' % (op[0], i.mention,
-                                       i.etype, ' '.join(op[1]))
+            his = '%s: %s | %s | %s' % (op[0], i.mention,
+                                        i.etype, ' '.join(op[1]))
             histories[his] += 1
         if not rm:
             new_tab.append(i)
