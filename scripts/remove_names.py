@@ -10,7 +10,7 @@ from collections import defaultdict
 logger = logging.getLogger()
 logging.basicConfig(format='%(asctime)s: %(levelname)s: %(message)s')
 logging.root.setLevel(level=logging.INFO)
-LONG_NAME_THRES = 10
+LONG_NAME_THRES = 15
 
 
 def process(tab, outpath=None, ppsm=None, verbose=True):

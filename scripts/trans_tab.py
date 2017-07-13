@@ -4,6 +4,7 @@ import re
 from collections import defaultdict
 import itertools
 import logging
+import argparse
 
 
 logger = logging.getLogger()
@@ -50,7 +51,7 @@ def partial_trans(mention, dic):
     return None
 
 
-def main(pdic, tab, outpath=None):
+def main(pdic, tab, outpath=None, match='partial'):
     logger.info('loading dict...')
     dic = read_dic(pdic)
     logger.info('dict size: %s' % len(dic))
@@ -68,8 +69,11 @@ def main(pdic, tab, outpath=None):
         trans = None
         if mention in dic:
             trans = '|'.join(dic[mention])
-        else:
+        elif match != 'exact':
             trans = partial_trans(mention, dic)
+            if match == 'tok_exact':
+                if trans and 'NULL' in trans:
+                    trans = None
         if not trans:
             trans = 'NULL'
         else:
@@ -90,12 +94,17 @@ def main(pdic, tab, outpath=None):
 
 
 if __name__ == '__main__':
-    if len(sys.argv) != 4:
-        print('USAGE: <path to dict> <path to tab> <output path>')
-        sys.exit()
-
-    pdic = sys.argv[1]
-    ptab = sys.argv[2]
-    outpath = sys.argv[3]
-    tab = open(ptab, 'r').read().split('\n')
-    main(pdic, tab, outpath)
+    matches = ['partial', 'tok_exact', 'exact']
+    parser = argparse.ArgumentParser()
+    parser.add_argument('pdic', type=str, help='path to dict')
+    parser.add_argument('ptab', type=str, help='path to tab')
+    parser.add_argument('outpath', type=str, help='output path')
+    parser.add_argument('--match', type=str,
+                        help='match approach: %s' % matches,
+                        default='partial')
+    args = parser.parse_args()
+    if args.match not in matches:
+        print('unrecognizeed match approach: %s' % args.match)
+        exit()
+    tab = open(args.ptab, 'r').read().split('\n')
+    main(args.pdic, tab, args.outpath, match=args.match)

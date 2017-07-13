@@ -10,7 +10,7 @@ from collections import defaultdict
 def reassign_id(tab, runid='RPI_BLENDER'):
     count = defaultdict(int)
     n = 0
-    logger.info('REASSIGN ID')
+    logger.info('REASSIGNING ID...')
     for i in tab:
         qid = 'M_' + '{number:0{width}d}'.format(width=7,
                                                  number=n)

@@ -2,6 +2,7 @@ import re
 import sys
 import logging
 import argparse
+import string
 import util
 from util import TacTab
 
@@ -41,8 +42,8 @@ def add_gazetteer(bio, gaz, gaz_tree):
                 tree = gaz_tree[tok]
                 mention = [tok]
                 offset = [(beg, end)]
-                for j, (next_tok, next_beg, next_end) \
-                    in enumerate(bio[docid][i+1:]):
+                for j, (next_tok, next_beg, next_end) in \
+                    enumerate(bio[docid][i+1:]):
                     if next_tok in tree:
                         tree = tree[next_tok]
                         mention.append(next_tok)
@@ -51,6 +52,14 @@ def add_gazetteer(bio, gaz, gaz_tree):
                         break
                 mention = ' '.join(mention)
                 if mention in gaz:
+                    # overlap = False
+                    # for j in res:
+                    #     if j.beg <= offset[0][0] <= j.end or \
+                    #        j.beg <= offset[-1][1] <= j.end:
+                    #         overlap = True
+                    #         break
+                    # if overlap:
+                    #     continue
                     offset = '%s:%s-%s' % (docid, offset[0][0], offset[-1][1])
                     qid = 'GAZ_' + '{number:0{width}d}'.format(width=7,
                                                                number=count)
@@ -62,6 +71,39 @@ def add_gazetteer(bio, gaz, gaz_tree):
                     res.append(TacTab('Gazetterr', qid, mention, offset, kbid,
                                       etype, mtype, conf, trans=trans))
                     count += 1
+    return res
+
+
+def add_sn_at(bio, gaz=None):
+    res = []
+    count = 0
+    for docid in bio:
+        if 'SN_' not in docid:
+            continue
+        for i, (tok, beg, end) in enumerate(bio[docid]):
+            if tok.startswith('#'): # TO-DO
+                pass
+            if tok.startswith('@'):
+                name = tok[1:]
+                if name.isdigit():
+                    continue
+                translation = str.maketrans('', '', string.punctuation);
+                if name.translate(translation) == '':
+                    continue
+                mention = tok
+                offset = '%s:%s-%s' % (docid, beg, end)
+                qid = 'SNAT_' + '{number:0{width}d}'.format(width=7,
+                                                            number=count)
+                kbid = 'NIL'
+                if gaz and mention.lower() in gaz:
+                    etype = gaz[mention.lower()][0]
+                else:
+                    etype = 'PER'
+                mtype = 'NAM'
+                conf = '1.0'
+                res.append(TacTab('SN_AT', qid, mention, offset, kbid,
+                                  etype, mtype, conf))
+                count += 1
     return res
 
 
@@ -78,14 +120,9 @@ def check_conflict(main_tab, added_tab, trust_new=False, verbose=False):
                 duplicate_tab.append((i, j))
                 overlapped = True
                 break
-            if j.beg <= i.beg <= j.end:
+            if j.beg <= i.beg <= j.end or j.beg <= i.end <= j.end:
                 overlapped_tab.append((i, j))
                 overlapped = True
-                break
-            elif j.beg <= i.end <= j.end:
-                overlapped_tab.append((i, j))
-                overlapped = True
-                break
         if not overlapped:
             checked_tab.append(i)
 
@@ -94,15 +131,16 @@ def check_conflict(main_tab, added_tab, trust_new=False, verbose=False):
     if trust_new:
         logger.info('  trust new names')
         new_main_tab = []
-        to_add = [i[0] for i in overlapped_tab]
-        to_remove = [i[1] for i in overlapped_tab]
+        to_add = list(set([i[0] for i in overlapped_tab]))
+        to_remove = [i[1].offset for i in overlapped_tab]
         if verbose:
             for i, j in overlapped_tab:
                 logger.info('%s %s -> %s %s' % (j.mention, j.trans,
                                                 i.mention, i.trans))
         for i in main_tab:
-            if i not in to_remove:
+            if i.offset not in to_remove:
                 new_main_tab.append(i)
+
         logger.info('  # of names revised: %s' % (len(to_add)))
         logger.info('  # of names added: %s' % (len(checked_tab)))
         logger.info('  # of total: %s' % (len(checked_tab) + len(to_add)))
@@ -125,7 +163,43 @@ def revise_etype(tab, gaz):
     logger.info('# of revised etypes: %s' % count)
 
 
-def process(tab, pbio, outpath=None, ppsm=None, pgaz=None):
+# ==============================
+def has_overlap(tab):
+    tab_doc = util.get_tab_in_doc_level(tab)
+    for i in tab:
+        for j in tab_doc[i.docid]:
+            if (i.beg, i.end) == (j.beg, j.end):
+                continue
+            if j.beg <= i.beg <= j.end or j.beg <= i.end <= j.end:
+                return True
+    return False
+
+def remove_overlap(tab):
+    new_tab = []
+    overlapped_tab = []
+    cleaned_tab = set()
+    tab_doc = util.get_tab_in_doc_level(tab)
+    for i in tab:
+        overlapped = False
+        for j in tab_doc[i.docid]:
+            if (i.beg, i.end) == (j.beg, j.end):
+                continue
+            if j.beg <= i.beg <= j.end or j.beg <= i.end <= j.end:
+                overlapped_tab.append((i, j))
+                overlapped = True
+        if not overlapped:
+            new_tab.append(i)
+    for i, j in overlapped_tab:
+        if len(i.mention.split(' ')) >= len(j.mention.split(' ')):
+            cleaned_tab.add(i)
+        else:
+            cleaned_tab.add(j)
+    new_tab += list(cleaned_tab)
+    return new_tab
+# ==============================
+
+
+def process(tab, pbio, outpath=None, snat=True, ppsm=None, pgaz=None):
     bio = util.read_bio(pbio)
     logger.info('ADDING NAMES...')
 
@@ -140,11 +214,44 @@ def process(tab, pbio, outpath=None, ppsm=None, pgaz=None):
         logger.info('ADDING gazetterrs...')
         gaz, gaz_tree = util.read_gaz(pgaz)
         added_tab = add_gazetteer(bio, gaz, gaz_tree)
+        # ================================================
+        added_tab = remove_overlap(added_tab)
+        # ================================================
+
         logger.info('# of gaz names found: %s' % (len(added_tab)))
         tab = check_conflict(tab, added_tab, trust_new=True, verbose=False)
 
         logger.info('REVISING entity types...')
         revise_etype(tab, gaz)
+
+    if snat:
+        logger.info('ADDING social network @...')
+        if pgaz:
+            gaz, gaz_tree = util.read_gaz(pgaz)
+        else:
+            gaz = None
+        added_tab = add_sn_at(bio, gaz)
+        logger.info('# of @ names found: %s' % (len(added_tab)))
+        tab = check_conflict(tab, added_tab, trust_new=True, verbose=True)
+
+    # ================================================
+    final_tab = []
+    tab_doc = util.get_tab_in_doc_level(tab)
+    for docid in tab_doc:
+        for i in tab_doc[docid]:
+            safe = True
+            for j in tab_doc[docid]:
+                if i == j:
+                    continue
+                if j.beg <= i.beg <= j.end or j.beg <= i.end <= j.end:
+                    print(i)
+                    print(j)
+                    print()
+                    safe = False
+            if safe:
+                final_tab.append(i)
+    tab = final_tab
+    # ================================================
 
     if outpath:
         with open(outpath, 'w') as fw:
