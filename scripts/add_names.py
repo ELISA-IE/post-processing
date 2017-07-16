@@ -128,8 +128,9 @@ def check_conflict(tab, added_tab, trust_new=False, verbose=False):
         to_remove = [i[1].offset for i in overlapped_tab]
         if verbose:
             for i, j in overlapped_tab:
-                logger.info('%s %s -> %s %s' % (j.mention, j.trans,
-                                                i.mention, i.trans))
+                msg = '%s %s -> %s %s ' % \
+                      (j.mention, j.trans, i.mention, i.trans)
+                logger.info(msg)
         for i in tab:
             if i.offset not in to_remove:
                 new_main_tab.append(i)
