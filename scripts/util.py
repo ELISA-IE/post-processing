@@ -78,18 +78,25 @@ def read_gaz(pgaz):
     res_tree = {}
     with open(pgaz, 'r') as f:
         for line in f:
-            if line.startswith('#'):
+            if not line.rstrip() or line.startswith('//'):
                 continue
             tmp = line.rstrip('\n').split('\t')
             mention = tmp[0]
             etype = tmp[1]
-            if len(tmp) > 2:
-                add_info = tmp[2]
+            op = tmp[2]
+            if len(tmp) > 3:
+                additional_info = tmp[3]
             else:
-                add_info = None
+                additional_info = None
             if mention in res:
                 assert res[mention][0] == etype
-            res[mention] = (etype, add_info)
+                assert res[mention][1] == op
+                # try:
+                #     assert res[mention][0] == etype
+                #     assert res[mention][1] == op
+                # except:
+                #     print(mention)
+            res[mention] = (etype, op, additional_info)
 
             toks = mention.split(' ') # TO-DO: no space langs
             tree = res_tree
@@ -104,7 +111,7 @@ def read_rule(prule):
     res = defaultdict(dict)
     with open(prule, 'r') as f:
         for line in f:
-            if line.startswith('#'):
+            if not line.rstrip() or line.startswith('//'):
                 continue
             tmp = line.rstrip('\n').split('\t')
             mention = tmp[0]

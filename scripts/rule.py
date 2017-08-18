@@ -23,13 +23,14 @@ def process(tab, prule, outpath=None, verbose=True):
         if i.mention in rule and i.etype in rule[i.mention]:
             op = rule[i.mention][i.etype]
             if op[0] == 'mv':
-                i.mention = op[1]
-                i.etype = op[2]
+                his = '%s: %s | %s -> %s' % (op[0], i.mention,
+                                            i.etype, ' | '.join(op[1]))
+                i.etype = op[1][0]
             elif op[0] == 'rm':
                 rm = True
+                his = '%s: %s | %s | %s' % (op[0], i.mention,
+                                            i.etype, ' | '.join(op[1]))
             count[op[0]] += 1
-            his = '%s: %s | %s | %s' % (op[0], i.mention,
-                                        i.etype, ' '.join(op[1]))
             histories[his] += 1
         if not rm:
             new_tab.append(i)
@@ -38,7 +39,7 @@ def process(tab, prule, outpath=None, verbose=True):
         logger.info('# of %s: %s' % (i, count[i]))
     if verbose:
         for i, c in sorted(histories.items(), key=lambda x: x[1], reverse=True):
-            logger.info('%s %s' % (c, i))
+            logger.info('%s | %s' % (i, c))
     tab = new_tab
     if outpath:
         with open(outpath, 'w') as fw:

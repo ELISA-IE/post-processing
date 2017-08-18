@@ -30,19 +30,24 @@ if __name__ == '__main__':
     logging.root.setLevel(level=logging.INFO)
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('ptab', type=str, help='path to tab')
     parser.add_argument('pbio', type=str, help='path to bio')
+    parser.add_argument('ptab', type=str, help='path to tab')
     parser.add_argument('outpath', type=str, help='output path')
     parser.add_argument('--ppsm', type=str, help='path to psm')
     parser.add_argument('--pgaz', type=str, help='path to gaz')
+    parser.add_argument('--psn', type=str, help='path to sn gaz')
+    parser.add_argument('--pdes', type=str, help='path to des')
     parser.add_argument('--prule', type=str, help='path to rules file')
     args = parser.parse_args()
 
     logger.info('loading tab...')
+    logger.info('%s' % args.ptab)
     tab = util.read_tab(args.ptab)
     logger.info('done.')
     tab = remove_names.process(tab, ppsm=args.ppsm)
-    tab = add_names.process(tab, args.pbio, ppsm=args.ppsm, pgaz=args.pgaz)
+    tab = add_names.process(tab, args.pbio,
+                            ppsm=args.ppsm, pgaz=args.pgaz,
+                            psn=args.psn, pdes=args.pdes)
     if args.prule:
         tab = rule.process(tab, args.prule)
 

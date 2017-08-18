@@ -4,6 +4,7 @@ import logging
 import argparse
 import string
 import itertools
+from collections import defaultdict
 import util
 from util import TacTab
 
@@ -34,8 +35,9 @@ def add_poster_author(bio, psm):
     return res
 
 
-def add_gazetteer(bio, gaz, gaz_tree):
-    res = []
+def add_gazetteer(bio, gaz, gaz_tree, des=None):
+    res_trusted = []
+    res_untrusted = []
     count = 0
     for docid in bio:
         for i, (tok, beg, end) in enumerate(bio[docid]):
@@ -53,18 +55,33 @@ def add_gazetteer(bio, gaz, gaz_tree):
                         break
                 mention = ' '.join(mention)
                 if mention in gaz:
+                    etype, op, additional_info = gaz[mention]
+
+                    if des:
+                        prev_tok, prev_beg, prev_end = bio[docid][i-1]
+                        if prev_tok in des:
+                            etype = des[prev_tok][0]
+                            mention = '%s %s' % (prev_tok, mention)
+                            offset = [(prev_beg, prev_end)] + offset
+
                     offset = '%s:%s-%s' % (docid, offset[0][0], offset[-1][1])
                     qid = 'GAZ_' + '{number:0{width}d}'.format(width=7,
                                                                number=count)
                     kbid = 'NIL'
-                    etype = gaz[mention][0]
                     mtype = 'NAM'
                     conf = '1.0'
-                    trans = gaz[mention][1]
-                    res.append(TacTab('Gazetterr', qid, mention, offset, kbid,
-                                      etype, mtype, conf, trans=trans))
+                    trans = additional_info
+                    tt = TacTab('Gazetterr', qid, mention, offset, kbid,
+                                etype, mtype, conf, trans=trans)
+                    if op == 'p':
+                        res_trusted.append(tt)
+                    elif op == 'p2':
+                        res_untrusted.append(tt)
+                    else:
+                        logger.error('unrecognized op: %s' % op)
+                        exit()
                     count += 1
-    return res
+    return res_trusted, res_untrusted
 
 
 def add_sn(bio, gaz=None):
@@ -74,8 +91,30 @@ def add_sn(bio, gaz=None):
         if 'SN_' not in docid:
             continue
         for i, (tok, beg, end) in enumerate(bio[docid]):
-            if tok.startswith('#'): # TO-DO
-                pass
+            if tok.startswith('#'):
+                name = tok[1:]
+                if name.isdigit():
+                    continue
+                translation = str.maketrans('', '', string.punctuation);
+                if name.translate(translation) == '':
+                    continue
+                mention = tok
+                offset = '%s:%s-%s' % (docid, beg, end)
+                qid = 'SNHASH_' + '{number:0{width}d}'.format(width=7,
+                                                              number=count)
+                kbid = 'NIL'
+                if gaz and mention in gaz:
+                    etype = gaz[mention][0]
+                    if etype == '-':
+                        continue
+                else:
+                    etype = 'GPE'
+                mtype = 'NAM'
+                conf = '1.0'
+                res.append(TacTab('SN_HASH', qid, mention, offset, kbid,
+                                  etype, mtype, conf))
+                count += 1
+
             if tok.startswith('@'):
                 name = tok[1:]
                 if name.isdigit():
@@ -88,8 +127,10 @@ def add_sn(bio, gaz=None):
                 qid = 'SNAT_' + '{number:0{width}d}'.format(width=7,
                                                             number=count)
                 kbid = 'NIL'
-                if gaz and mention.lower() in gaz:
-                    etype = gaz[mention.lower()][0]
+                if gaz and mention in gaz:
+                    etype = gaz[mention][0]
+                    if etype == '-':
+                        continue
                 else:
                     etype = 'PER'
                 mtype = 'NAM'
@@ -104,6 +145,7 @@ def check_conflict(tab, added_tab, trust_new=False, verbose=False):
     duplicate_tab = []
     overlapped_tab = []
     checked_tab = []
+    count = defaultdict(int)
     logger.info('checking conflicted names...')
     tab_doc = util.get_tab_in_doc_level(tab)
     for i in added_tab:
@@ -113,7 +155,8 @@ def check_conflict(tab, added_tab, trust_new=False, verbose=False):
                 duplicate_tab.append((i, j))
                 overlapped = True
                 break
-            if j.beg <= i.beg <= j.end or j.beg <= i.end <= j.end:
+            if j.beg <= i.beg <= j.end or j.beg <= i.end <= j.end or \
+               i.beg <= j.beg <= i.end or i.beg <= j.end <= i.end:
                 overlapped_tab.append((i, j))
                 overlapped = True
         if not overlapped:
@@ -122,14 +165,13 @@ def check_conflict(tab, added_tab, trust_new=False, verbose=False):
     logger.info('# of duplicate names: %s' % (len(duplicate_tab)))
     logger.info('# of overlapped names: %s' % (len(overlapped_tab)))
     if trust_new:
-        logger.info('  trust new names')
+        logger.info('TRUST NEW NAMES')
         new_main_tab = []
         to_add = list(set([i[0] for i in overlapped_tab]))
         to_remove = [i[1].offset for i in overlapped_tab]
         if verbose:
             for i, j in overlapped_tab:
-                msg = '%s %s -> %s %s ' % \
-                      (j.mention, j.trans, i.mention, i.trans)
+                msg = "  '%s' -> '%s'" % (j.mention, i.mention)
                 logger.info(msg)
         for i in tab:
             if i.offset not in to_remove:
@@ -140,21 +182,41 @@ def check_conflict(tab, added_tab, trust_new=False, verbose=False):
         logger.info('  # of total: %s' % (len(checked_tab) + len(to_add)))
         new_main_tab += to_add
         new_main_tab += checked_tab
+        if verbose:
+            for i in to_add:
+                count[(i.mention, i.etype)] += 1
+            for i in checked_tab:
+                count[(i.mention, i.etype)] += 1
+            for i, c in sorted(count.items(), key=lambda x: x[1], reverse=True):
+                logger.info('  %s | %s | %s' % (i[0], i[1], c))
         return new_main_tab
     else:
-        logger.info('  trust original names')
+        logger.info('TRUST ORIGINAL NAMES')
         logger.info('# of names added: %s' % len(checked_tab))
-        main_tab += checked_tab
-        return main_tab
+        tab += checked_tab
+        if verbose:
+            for i in checked_tab:
+                count[(i.mention, i.etype)] += 1
+            for i, c in sorted(count.items(), key=lambda x: x[1], reverse=True):
+                logger.info('  %s | %s | %s' % (i[0], i[1], c))
+        return tab
 
 
-def revise_etype(tab, gaz):
-    count = 0
+def revise_etype(tab, gaz, verbose=False):
+    tol = 0
+    count = defaultdict(int)
     for i in tab:
         if i.mention in gaz and i.etype != gaz[i.mention][0]:
+            # if verbose:
+            #     logger.info("  %s | %s -> %s" % (i.mention, i.etype,
+            #                                  gaz[i.mention][0]))
+            count[(i.mention, i.etype, gaz[i.mention][0])] += 1
             i.etype = gaz[i.mention][0]
-            count += 1
-    logger.info('# of revised etypes: %s' % count)
+            tol += 1
+    logger.info('# of revised etypes: %s' % tol)
+    if verbose:
+        for i, c in sorted(count.items(), key=lambda x: x[1], reverse=True):
+            logger.info('  %s | %s -> %s | %s' % (i[0], i[1], i[2], c))
 
 
 def remove_overlap(tab):
@@ -181,7 +243,8 @@ def remove_overlap(tab):
     return new_tab
 
 
-def process(tab, pbio, outpath=None, snat=True, ppsm=None, pgaz=None):
+def process(tab, pbio, outpath=None, sn=True,
+            ppsm=None, pgaz=None, psn=None, pdes=None):
     bio = util.read_bio(pbio)
     logger.info('--- ADDING NAMES ---')
 
@@ -194,22 +257,29 @@ def process(tab, pbio, outpath=None, snat=True, ppsm=None, pgaz=None):
 
     if pgaz:
         logger.info('--- ADDING gazetterrs ---')
+        if pdes:
+            des, des_tree = gaz, gaz_tree = util.read_gaz(pdes)
+        else:
+            des = None
         gaz, gaz_tree = util.read_gaz(pgaz)
-        added_tab = add_gazetteer(bio, gaz, gaz_tree)
-        added_tab = remove_overlap(added_tab)
-        logger.info('# of gaz names found: %s' % (len(added_tab)))
-        tab = check_conflict(tab, added_tab, trust_new=True, verbose=False)
+        added_tab_t, added_tab_ut = add_gazetteer(bio, gaz, gaz_tree, des=des)
+        added_tab_t = remove_overlap(added_tab_t)
+        added_tab_ut = remove_overlap(added_tab_ut)
+        logger.info('# of trusted names found: %s' % (len(added_tab_t)))
+        tab = check_conflict(tab, added_tab_t, trust_new=True, verbose=True)
+        logger.info('# of untrusted names found: %s' % (len(added_tab_ut)))
+        tab = check_conflict(tab, added_tab_ut, trust_new=False, verbose=True)
 
         logger.info('--- REVISING entity types ---')
-        revise_etype(tab, gaz)
+        revise_etype(tab, gaz, verbose=True)
 
-    if snat:
+    if sn:
         logger.info('--- ADDING social network names ---')
-        if pgaz:
-            gaz, gaz_tree = util.read_gaz(pgaz)
+        if psn:
+            gaz, gaz_tree = util.read_gaz(psn)
         else:
             gaz = None
-        added_tab = add_sn(bio, gaz)
+        added_tab = add_sn(bio, gaz=gaz)
         logger.info('# of SN names found: %s' % (len(added_tab)))
         tab = check_conflict(tab, added_tab, trust_new=True, verbose=True)
 
@@ -227,9 +297,10 @@ if __name__ == '__main__':
     parser.add_argument('outpath', type=str, help='output path')
     parser.add_argument('--ppsm', type=str, help='path to psm')
     parser.add_argument('--pgaz', type=str, help='path to gaz')
+    parser.add_argument('--pdes', type=str, help='path to des')
     args = parser.parse_args()
 
     tab = util.read_tab(args.ptab)
     process(tab, args.pbio,
-            ppsm=args.ppsm, pgaz=args.pgaz,
+            ppsm=args.ppsm, pgaz=args.pgaz, pdes=args.pdes,
             outpath=args.outpath)
