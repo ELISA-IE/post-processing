@@ -176,10 +176,8 @@ def check_conflict(tab, added_tab, trust_new=False, verbose=False):
         for i in tab:
             if i.offset not in to_remove:
                 new_main_tab.append(i)
+        logger.info('# of names revised: %s' % (len(to_add)))
 
-        logger.info('  # of names revised: %s' % (len(to_add)))
-        logger.info('  # of names added: %s' % (len(checked_tab)))
-        logger.info('  # of total: %s' % (len(checked_tab) + len(to_add)))
         new_main_tab += to_add
         new_main_tab += checked_tab
         if verbose:
@@ -189,16 +187,18 @@ def check_conflict(tab, added_tab, trust_new=False, verbose=False):
                 count[(i.mention, i.etype)] += 1
             for i, c in sorted(count.items(), key=lambda x: x[1], reverse=True):
                 logger.info('  %s | %s | %s' % (i[0], i[1], c))
+        logger.info('# of names added: %s' % (len(checked_tab)))
+        logger.info('# of total: %s' % (len(checked_tab) + len(to_add)))
         return new_main_tab
     else:
         logger.info('TRUST ORIGINAL NAMES')
-        logger.info('# of names added: %s' % len(checked_tab))
         tab += checked_tab
         if verbose:
             for i in checked_tab:
                 count[(i.mention, i.etype)] += 1
             for i, c in sorted(count.items(), key=lambda x: x[1], reverse=True):
                 logger.info('  %s | %s | %s' % (i[0], i[1], c))
+        logger.info('# of names added: %s' % len(checked_tab))
         return tab
 
 
@@ -281,7 +281,7 @@ def process(tab, pbio, outpath=None, sn=True,
             gaz = None
         added_tab = add_sn(bio, gaz=gaz)
         logger.info('# of SN names found: %s' % (len(added_tab)))
-        tab = check_conflict(tab, added_tab, trust_new=True, verbose=True)
+        tab = check_conflict(tab, added_tab, trust_new=True, verbose=False)
 
     if outpath:
         with open(outpath, 'w') as fw:

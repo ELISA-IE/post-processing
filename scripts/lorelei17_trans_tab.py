@@ -16,19 +16,21 @@ logging.basicConfig(format='%(asctime)s: %(levelname)s: %(message)s')
 logging.root.setLevel(level=logging.INFO)
 
 API_DATASET = {
-    'il5': 'E_TIR_SET1_DI',
-    'il6': 'E_ORM_SET1_DI',
+    'il5': 'Tigrinya_Dictionary',
+    'il6': 'Oromo_Dictionary',
 }
 API = 'http://blender03.cs.rpi.edu:8086/resource/lexicon?' \
       'dataset=%s&morph=true&query=%s'
 
 pdes_il6 = '/nas/data/m1/panx2/lorelei/data/dict/il6/designator.gaz'
 designators_il6 = set()
+designators_eng = set()
 with open(pdes_il6, 'r') as f:
     for line in f:
         tmp = line.rstrip('\n').split('\t')
         if tmp[1] == 'GPE':
             designators_il6.add(tmp[0])
+            designators_eng.add(tmp[3].lower())
 
 
 @functools.lru_cache(maxsize=None)
@@ -49,6 +51,7 @@ def trans_api(query, lang):
             priority = 2 * i['priority']
         else:
             priority = 1 * i['priority']
+
         trans[i['gloss']] += priority
     return [i for i, c in sorted(trans.items(),
                                  key=lambda x: x[1], reverse=True)]
@@ -65,23 +68,13 @@ def main(tab, lang, outpath=None):
             continue
         tmp = line.rstrip('\n').split('\t')
         mention = tmp[2]
-        try:
-            trans = trans_api(mention, lang)
-        except:
-            logger.error('CANNOT translate %s' % mention)
-            trans = None
+        trans = trans_api(mention, lang)
 
         if not trans and lang == 'il6':
             toks = tmp[2].split(' ')
             if toks[0] in designators_il6:
                 mention = ' '.join(toks[1:])
-                try:
-                    trans = trans_api(mention, lang)
-                except:
-                    logger.error('CANNOT translate %s' % mention)
-                    trans = None
-                # if trans:
-                #     print('%s | %s | %s' % (tmp[2], mention, trans))
+                trans = trans_api(mention, lang)
 
         if not trans:
             trans = 'NULL'

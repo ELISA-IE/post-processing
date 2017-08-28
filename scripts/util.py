@@ -108,6 +108,8 @@ def read_gaz(pgaz):
 
 
 def read_rule(prule):
+    ETYPES = ['PER', 'ORG', 'GPE', 'LOC']
+    OPS = ['mv', 'rm']
     res = defaultdict(dict)
     with open(prule, 'r') as f:
         for line in f:
@@ -116,6 +118,10 @@ def read_rule(prule):
             tmp = line.rstrip('\n').split('\t')
             mention = tmp[0]
             etype = tmp[1]
+            assert etype in ETYPES
             operate = (tmp[2], tmp[3:])
+            assert operate[0] in OPS
+            if operate[0] == 'mv':
+                assert operate[1][0] in ETYPES
             res[mention][etype] = operate
     return res
