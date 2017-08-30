@@ -243,7 +243,7 @@ def remove_overlap(tab):
     return new_tab
 
 
-def process(tab, pbio, outpath=None, sn=True,
+def process(tab, pbio, outpath=None, sn=True, lower=False,
             ppsm=None, pgaz=None, psn=None, pdes=None):
     bio = util.read_bio(pbio)
     logger.info('--- ADDING NAMES ---')
@@ -258,10 +258,10 @@ def process(tab, pbio, outpath=None, sn=True,
     if pgaz:
         logger.info('--- ADDING gazetterrs ---')
         if pdes:
-            des, des_tree = gaz, gaz_tree = util.read_gaz(pdes)
+            des, des_tree = gaz, gaz_tree = util.read_gaz(pdes, lower=lower)
         else:
             des = None
-        gaz, gaz_tree = util.read_gaz(pgaz)
+        gaz, gaz_tree = util.read_gaz(pgaz, lower=lower)
         added_tab_t, added_tab_ut = add_gazetteer(bio, gaz, gaz_tree, des=des)
         added_tab_t = remove_overlap(added_tab_t)
         added_tab_ut = remove_overlap(added_tab_ut)
@@ -276,7 +276,7 @@ def process(tab, pbio, outpath=None, sn=True,
     if sn:
         logger.info('--- ADDING social network names ---')
         if psn:
-            gaz, gaz_tree = util.read_gaz(psn)
+            gaz, gaz_tree = util.read_gaz(psn, lower=lower)
         else:
             gaz = None
         added_tab = add_sn(bio, gaz=gaz)

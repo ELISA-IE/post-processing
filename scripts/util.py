@@ -73,7 +73,7 @@ def get_tab_in_doc_level(tab):
     return res
 
 
-def read_gaz(pgaz):
+def read_gaz(pgaz, lower=False):
     res = {}
     res_tree = {}
     with open(pgaz, 'r') as f:
@@ -82,20 +82,22 @@ def read_gaz(pgaz):
                 continue
             tmp = line.rstrip('\n').split('\t')
             mention = tmp[0]
+            if lower:
+                mention = mention.lower()
             etype = tmp[1]
             op = tmp[2]
             if len(tmp) > 3:
                 additional_info = tmp[3]
             else:
                 additional_info = None
-            if mention in res:
+            if mention in res and not lower:
                 assert res[mention][0] == etype
                 assert res[mention][1] == op
                 # try:
                 #     assert res[mention][0] == etype
                 #     assert res[mention][1] == op
                 # except:
-                #     print(mention)
+                #     print(tmp)
             res[mention] = (etype, op, additional_info)
 
             toks = mention.split(' ') # TO-DO: no space langs
@@ -107,7 +109,7 @@ def read_gaz(pgaz):
     return res, res_tree
 
 
-def read_rule(prule):
+def read_rule(prule, lower=False):
     ETYPES = ['PER', 'ORG', 'GPE', 'LOC']
     OPS = ['mv', 'rm']
     res = defaultdict(dict)
@@ -117,6 +119,8 @@ def read_rule(prule):
                 continue
             tmp = line.rstrip('\n').split('\t')
             mention = tmp[0]
+            if lower:
+                mention = mention.lower()
             etype = tmp[1]
             assert etype in ETYPES
             operate = (tmp[2], tmp[3:])

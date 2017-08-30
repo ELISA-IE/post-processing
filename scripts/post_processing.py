@@ -38,18 +38,20 @@ if __name__ == '__main__':
     parser.add_argument('--psn', type=str, help='path to sn gaz')
     parser.add_argument('--pdes', type=str, help='path to des')
     parser.add_argument('--prule', type=str, help='path to rules file')
+    parser.add_argument('--lower', action='store_true', default=False,
+                        help='lowercase mode')
     args = parser.parse_args()
-
+    print(args.lower)
     logger.info('loading tab...')
     logger.info('%s' % args.ptab)
     tab = util.read_tab(args.ptab)
     logger.info('done.')
     tab = remove_names.process(tab, ppsm=args.ppsm)
-    tab = add_names.process(tab, args.pbio,
+    tab = add_names.process(tab, args.pbio, lower=args.lower,
                             ppsm=args.ppsm, pgaz=args.pgaz,
                             psn=args.psn, pdes=args.pdes)
     if args.prule:
-        tab = rule.process(tab, args.prule)
+        tab = rule.process(tab, args.prule, lower=args.lower)
 
     reassign_id(tab)
     with open(args.outpath, 'w') as fw:

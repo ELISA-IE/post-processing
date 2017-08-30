@@ -12,12 +12,12 @@ logging.basicConfig(format='%(asctime)s: %(levelname)s: %(message)s')
 logging.root.setLevel(level=logging.INFO)
 
 
-def process(tab, prule, outpath=None, verbose=True):
+def process(tab, prule, outpath=None, lower=False, verbose=True):
     new_tab = []
     count = defaultdict(int)
     histories = defaultdict(int)
     logger.info('--- APPLYING RULES ---')
-    rule = util.read_rule(prule)
+    rule = util.read_rule(prule, lower=lower)
     for i in tab:
         rm = False
         if i.mention in rule and i.etype in rule[i.mention]:
