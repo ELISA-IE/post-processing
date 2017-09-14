@@ -41,7 +41,7 @@ if __name__ == '__main__':
     parser.add_argument('--lower', action='store_true', default=False,
                         help='lowercase mode')
     args = parser.parse_args()
-    print(args.lower)
+
     logger.info('loading tab...')
     logger.info('%s' % args.ptab)
     tab = util.read_tab(args.ptab)
