@@ -101,7 +101,7 @@ if __name__ == '__main__':
     parser.add_argument('outpath', type=str, help='output path')
     parser.add_argument('--match', type=str,
                         help='match approach: %s' % matches,
-                        default='partial')
+                        default='exact')
     args = parser.parse_args()
     if args.match not in matches:
         print('unrecognizeed match approach: %s' % args.match)
