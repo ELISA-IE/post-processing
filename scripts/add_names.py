@@ -170,6 +170,7 @@ def check_conflict(tab, added_tab, trust_new=False, verbose=False):
         to_add = list(set([i[0] for i in overlapped_tab]))
         to_remove = [i[1].offset for i in overlapped_tab]
         if verbose:
+            logger.info('verbose...')
             for i, j in overlapped_tab:
                 msg = "  '%s' -> '%s'" % (j.mention, i.mention)
                 logger.info(msg)
@@ -181,6 +182,7 @@ def check_conflict(tab, added_tab, trust_new=False, verbose=False):
         new_main_tab += to_add
         new_main_tab += checked_tab
         if verbose:
+            logger.info('verbose...')
             for i in to_add:
                 count[(i.mention, i.etype)] += 1
             for i in checked_tab:
@@ -194,6 +196,7 @@ def check_conflict(tab, added_tab, trust_new=False, verbose=False):
         logger.info('TRUST ORIGINAL NAMES')
         tab += checked_tab
         if verbose:
+            logger.info('verbose...')
             for i in checked_tab:
                 count[(i.mention, i.etype)] += 1
             for i, c in sorted(count.items(), key=lambda x: x[1], reverse=True):
@@ -207,14 +210,12 @@ def revise_etype(tab, gaz, verbose=False):
     count = defaultdict(int)
     for i in tab:
         if i.mention in gaz and i.etype != gaz[i.mention][0]:
-            # if verbose:
-            #     logger.info("  %s | %s -> %s" % (i.mention, i.etype,
-            #                                  gaz[i.mention][0]))
             count[(i.mention, i.etype, gaz[i.mention][0])] += 1
             i.etype = gaz[i.mention][0]
             tol += 1
     logger.info('# of revised etypes: %s' % tol)
     if verbose:
+        logger.info('verbose...')
         for i, c in sorted(count.items(), key=lambda x: x[1], reverse=True):
             logger.info('  %s | %s -> %s | %s' % (i[0], i[1], i[2], c))
 
@@ -246,35 +247,38 @@ def remove_overlap(tab):
 def process(tab, pbio, outpath=None, sn=True, lower=False,
             ppsm=None, pgaz=None, psn=None, pdes=None):
     bio = util.read_bio(pbio)
-    logger.info('--- ADDING NAMES ---')
+    logger.info('\n------ ADDING NAMES ------')
 
     if ppsm:
-        logger.info('--- ADDING df poster authors ---')
+        logger.info('\n--- ADDING df poster authors ---')
         psm = util.read_psm(ppsm)
         added_tab = add_poster_author(bio, psm)
         logger.info('# of df poster authors found: %s' % (len(added_tab)))
         tab = check_conflict(tab, added_tab, trust_new=True)
 
     if pgaz:
-        logger.info('--- ADDING gazetterrs ---')
+        logger.info('\n--- ADDING gazetterrs ---')
         if pdes:
             des, des_tree = gaz, gaz_tree = util.read_gaz(pdes, lower=lower)
         else:
             des = None
         gaz, gaz_tree = util.read_gaz(pgaz, lower=lower)
+        logger.info('loading gazetterrs...')
         added_tab_t, added_tab_ut = add_gazetteer(bio, gaz, gaz_tree, des=des)
+        logger.info('checking trusted (p) names...')
         added_tab_t = remove_overlap(added_tab_t)
+        logger.info('checking untrusted (p2) names...')
         added_tab_ut = remove_overlap(added_tab_ut)
-        logger.info('# of trusted names found: %s' % (len(added_tab_t)))
+        logger.info('-- trusted (p) names found: %s' % (len(added_tab_t)))
         tab = check_conflict(tab, added_tab_t, trust_new=True, verbose=True)
-        logger.info('# of untrusted names found: %s' % (len(added_tab_ut)))
+        logger.info('-- untrusted (p2) names found: %s' % (len(added_tab_ut)))
         tab = check_conflict(tab, added_tab_ut, trust_new=False, verbose=True)
 
-        logger.info('--- REVISING entity types ---')
+        logger.info('\n--- REVISING entity types ---')
         revise_etype(tab, gaz, verbose=True)
 
     if sn:
-        logger.info('--- ADDING social network names ---')
+        logger.info('\n--- ADDING social network names ---')
         if psn:
             gaz, gaz_tree = util.read_gaz(psn, lower=lower)
         else:

@@ -20,7 +20,7 @@ def process(tab, outpath=None, ppsm=None, verbose=True):
     if ppsm:
         psm = util.read_psm(ppsm)
 
-    logger.info('--- REMOVING NAMES ---')
+    logger.info('\n------ REMOVING NAMES ------')
     for i in tab:
         remove = False
 

@@ -16,22 +16,40 @@ def process(tab, prule, outpath=None, lower=False, verbose=True):
     new_tab = []
     count = defaultdict(int)
     histories = defaultdict(int)
-    logger.info('--- APPLYING RULES ---')
+    logger.info('------ APPLYING RULES ------')
     rule = util.read_rule(prule, lower=lower)
     for i in tab:
         rm = False
-        if i.mention in rule and i.etype in rule[i.mention]:
-            op = rule[i.mention][i.etype]
+        if i.mention in rule:
+            if 'ALL' in rule[i.mention]:
+                op = rule[i.mention]['ALL']
+            elif i.etype in rule[i.mention]:
+                op = rule[i.mention][i.etype]
+            else:
+                continue
             if op[0] == 'mv':
                 his = '%s: %s | %s -> %s' % (op[0], i.mention,
                                             i.etype, ' | '.join(op[1]))
                 i.etype = op[1][0]
-            elif op[0] == 'rm':
+            elif op[0] == 'rm' or op[0] == 'in_rm':
                 rm = True
                 his = '%s: %s | %s | %s' % (op[0], i.mention,
                                             i.etype, ' | '.join(op[1]))
             count[op[0]] += 1
             histories[his] += 1
+        if not rm:
+            for r in rule:
+                if r in i.mention: # substring match
+                    if 'ALL' in rule[r]:
+                        op = rule[r]['ALL']
+                    elif i.etype in rule[r]:
+                        op = rule[r][i.etype]
+                    else:
+                        continue
+                    if op[0] == 'in_rm':
+                        rm = True
+                        his = '%s: %s | %s | %s' % (op[0], i.mention,
+                                                    i.etype, ' | '.join(op[1]))
         if not rm:
             new_tab.append(i)
 

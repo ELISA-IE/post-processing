@@ -91,13 +91,12 @@ def read_gaz(pgaz, lower=False):
             else:
                 additional_info = None
             if mention in res and not lower:
-                assert res[mention][0] == etype
-                assert res[mention][1] == op
-                # try:
-                #     assert res[mention][0] == etype
-                #     assert res[mention][1] == op
-                # except:
-                #     print(tmp)
+                try:
+                    assert res[mention][0] == etype
+                    assert res[mention][1] == op
+                except:
+                    print('bad gaz: %s' % tmp)
+                    exit()
             res[mention] = (etype, op, additional_info)
 
             toks = mention.split(' ') # TO-DO: no space langs
@@ -110,8 +109,8 @@ def read_gaz(pgaz, lower=False):
 
 
 def read_rule(prule, lower=False):
-    ETYPES = ['PER', 'ORG', 'GPE', 'LOC']
-    OPS = ['mv', 'rm']
+    ETYPES = ['PER', 'ORG', 'GPE', 'LOC', 'ALL']
+    OPS = ['mv', 'rm', 'in_rm']
     res = defaultdict(dict)
     with open(prule, 'r') as f:
         for line in f:
