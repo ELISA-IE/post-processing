@@ -171,9 +171,15 @@ def check_conflict(tab, added_tab, trust_new=False, verbose=False):
         to_remove = [i[1].offset for i in overlapped_tab]
         if verbose:
             logger.info('verbose...')
+            overlapped_tab_count = defaultdict(int)
             for i, j in overlapped_tab:
-                msg = "  '%s' -> '%s'" % (j.mention, i.mention)
+                overlapped_tab_count[(j.mention, j.trans,
+                                      i.mention, i.trans)] += 1
+            for m, c in sorted(overlapped_tab_count.items(),
+                               key=lambda x: x[1], reverse=True):
+                msg = "  '%s' %s -> '%s' %s | %s" % (m[0], m[1], m[2], m[3], c)
                 logger.info(msg)
+                # print('%s\t%s\t%s\t%s\t%s' % (m[0], m[1], m[2], m[3], c))
         for i in tab:
             if i.offset not in to_remove:
                 new_main_tab.append(i)
@@ -184,11 +190,12 @@ def check_conflict(tab, added_tab, trust_new=False, verbose=False):
         if verbose:
             logger.info('verbose...')
             for i in to_add:
-                count[(i.mention, i.etype)] += 1
+                count[(i.mention, i.etype, i.trans)] += 1
             for i in checked_tab:
-                count[(i.mention, i.etype)] += 1
+                count[(i.mention, i.etype, i.trans)] += 1
             for i, c in sorted(count.items(), key=lambda x: x[1], reverse=True):
-                logger.info('  %s | %s | %s' % (i[0], i[1], c))
+                logger.info('  %s | %s | %s | %s' % (i[0], i[1], i[2], c))
+                # print('%s\t%s\t%s\t%s\tp' % (i[0], i[1], c, i[2]))
         logger.info('# of names added: %s' % (len(checked_tab)))
         logger.info('# of total: %s' % (len(checked_tab) + len(to_add)))
         return new_main_tab
@@ -198,9 +205,10 @@ def check_conflict(tab, added_tab, trust_new=False, verbose=False):
         if verbose:
             logger.info('verbose...')
             for i in checked_tab:
-                count[(i.mention, i.etype)] += 1
+                count[(i.mention, i.etype, i.trans)] += 1
             for i, c in sorted(count.items(), key=lambda x: x[1], reverse=True):
-                logger.info('  %s | %s | %s' % (i[0], i[1], c))
+                logger.info('  %s | %s | %s | %s' % (i[0], i[1], i[2], c))
+                # print('%s\t%s\t%s\t%s\tp2' % (i[0], i[1], c, i[2]))
         logger.info('# of names added: %s' % len(checked_tab))
         return tab
 
@@ -277,15 +285,15 @@ def process(tab, pbio, outpath=None, sn=True, lower=False,
         logger.info('\n--- REVISING entity types ---')
         revise_etype(tab, gaz, verbose=True)
 
-    if sn:
-        logger.info('\n--- ADDING social network names ---')
-        if psn:
-            gaz, gaz_tree = util.read_gaz(psn, lower=lower)
-        else:
-            gaz = None
-        added_tab = add_sn(bio, gaz=gaz)
-        logger.info('# of SN names found: %s' % (len(added_tab)))
-        tab = check_conflict(tab, added_tab, trust_new=True, verbose=False)
+    # if sn:
+    #     logger.info('\n--- ADDING social network names ---')
+    #     if psn:
+    #         gaz, gaz_tree = util.read_gaz(psn, lower=lower)
+    #     else:
+    #         gaz = None
+    #     added_tab = add_sn(bio, gaz=gaz)
+    #     logger.info('# of SN names found: %s' % (len(added_tab)))
+    #     tab = check_conflict(tab, added_tab, trust_new=True, verbose=True)
 
     if outpath:
         with open(outpath, 'w') as fw:

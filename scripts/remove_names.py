@@ -52,17 +52,17 @@ def process(tab, outpath=None, ppsm=None, verbose=True):
             remove = True
             continue
 
-        # 4. Contains digits
-        if re.search('\d+', i.mention):
-            if psm and i.docid in psm and i.mention in psm[i.docid]:
-                pass
-            elif 'SN_' in i.docid:
-                pass
-            else:
-                his = 'HAS_DIGITS %s | %s' % (i.mention, i.etype)
-                histories[his] += 1
-                remove = True
-                continue
+        # # 4. Contains digits
+        # if re.search('\d+', i.mention):
+        #     if psm and i.docid in psm and i.mention in psm[i.docid]:
+        #         pass
+        #     elif 'SN_' in i.docid:
+        #         pass
+        #     else:
+        #         his = 'HAS_DIGITS %s | %s' % (i.mention, i.etype)
+        #         histories[his] += 1
+        #         remove = True
+        #         continue
 
         # 5. Long names
         if len(i.mention.split()) >= LONG_NAME_THRES:
@@ -87,7 +87,7 @@ def process(tab, outpath=None, ppsm=None, verbose=True):
     if verbose:
         logger.info('%s names are removed' % len(histories))
         for i, c in sorted(histories.items(), key=lambda x: x[1], reverse=True):
-            logger.info('  %s | %s' % (c, i))
+            logger.info('  %s | %s' % (i, c))
 
     if outpath:
         with open(outpath, 'w') as fw:
