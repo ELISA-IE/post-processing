@@ -22,7 +22,7 @@ API_DATASET = {
 API = 'http://blender03.cs.rpi.edu:8086/resource/lexicon?' \
       'dataset=%s&morph=true&query=%s'
 
-pdes_il6 = '/nas/data/m1/panx2/lorelei/data/dict/il6/designator.gaz'
+pdes_il6 = '/nas/data/m1/panx2/workspace/lorelei/data/dict/il6/designator.gaz'
 designators_il6 = set()
 designators_eng = set()
 with open(pdes_il6, 'r') as f:

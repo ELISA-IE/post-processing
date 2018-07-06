@@ -98,13 +98,16 @@ def add_sn(bio, gaz=None):
                 translation = str.maketrans('', '', string.punctuation);
                 if name.translate(translation) == '':
                     continue
+                if '#' in name or '@' in name:
+                    continue
                 mention = tok
                 offset = '%s:%s-%s' % (docid, beg, end)
                 qid = 'SNHASH_' + '{number:0{width}d}'.format(width=7,
                                                               number=count)
                 kbid = 'NIL'
+                additional_info = None
                 if gaz and mention in gaz:
-                    etype = gaz[mention][0]
+                    etype, op, additional_info = gaz[mention]
                     if etype == '-':
                         continue
                 else:
@@ -112,7 +115,7 @@ def add_sn(bio, gaz=None):
                 mtype = 'NAM'
                 conf = '1.0'
                 res.append(TacTab('SN_HASH', qid, mention, offset, kbid,
-                                  etype, mtype, conf))
+                                  etype, mtype, conf, trans=additional_info))
                 count += 1
 
             if tok.startswith('@'):
@@ -122,13 +125,16 @@ def add_sn(bio, gaz=None):
                 translation = str.maketrans('', '', string.punctuation);
                 if name.translate(translation) == '':
                     continue
+                if '#' in name or '@' in name:
+                    continue
                 mention = tok
                 offset = '%s:%s-%s' % (docid, beg, end)
                 qid = 'SNAT_' + '{number:0{width}d}'.format(width=7,
                                                             number=count)
                 kbid = 'NIL'
+                additional_info = None
                 if gaz and mention in gaz:
-                    etype = gaz[mention][0]
+                    etype, op, additional_info = gaz[mention]
                     if etype == '-':
                         continue
                 else:
@@ -136,31 +142,32 @@ def add_sn(bio, gaz=None):
                 mtype = 'NAM'
                 conf = '1.0'
                 res.append(TacTab('SN_AT', qid, mention, offset, kbid,
-                                  etype, mtype, conf))
+                                  etype, mtype, conf, trans=additional_info))
                 count += 1
     return res
 
 
-def check_conflict(tab, added_tab, trust_new=False, verbose=False):
+def check_conflict(tab, tab_to_add, trust_new=False, verbose=False):
     duplicate_tab = []
     overlapped_tab = []
-    checked_tab = []
+    non_overlapped_tab = []
     count = defaultdict(int)
     logger.info('checking conflicted names...')
     tab_doc = util.get_tab_in_doc_level(tab)
-    for i in added_tab:
+    for i in tab_to_add:
         overlapped = False
         for j in tab_doc[i.docid]:
-            if (i.beg, i.end) == (j.beg, j.end):
+            if (i.beg, i.end) == (j.beg, j.end) and i.etype == j.etype:
                 duplicate_tab.append((i, j))
                 overlapped = True
                 break
-            if j.beg <= i.beg <= j.end or j.beg <= i.end <= j.end or \
-               i.beg <= j.beg <= i.end or i.beg <= j.end <= i.end:
+            # if j.beg <= i.beg <= j.end or j.beg <= i.end <= j.end or \
+            #    i.beg <= j.beg <= i.end or i.beg <= j.end <= i.end:
+            if max(i.beg, j.beg) < min(i.end, j.end):
                 overlapped_tab.append((i, j))
                 overlapped = True
         if not overlapped:
-            checked_tab.append(i)
+            non_overlapped_tab.append(i)
 
     logger.info('# of duplicate names: %s' % (len(duplicate_tab)))
     logger.info('# of overlapped names: %s' % (len(overlapped_tab)))
@@ -179,37 +186,34 @@ def check_conflict(tab, added_tab, trust_new=False, verbose=False):
                                key=lambda x: x[1], reverse=True):
                 msg = "  '%s' %s -> '%s' %s | %s" % (m[0], m[1], m[2], m[3], c)
                 logger.info(msg)
-                # print('%s\t%s\t%s\t%s\t%s' % (m[0], m[1], m[2], m[3], c))
         for i in tab:
             if i.offset not in to_remove:
                 new_main_tab.append(i)
         logger.info('# of names revised: %s' % (len(to_add)))
 
         new_main_tab += to_add
-        new_main_tab += checked_tab
+        new_main_tab += non_overlapped_tab
         if verbose:
             logger.info('verbose...')
             for i in to_add:
                 count[(i.mention, i.etype, i.trans)] += 1
-            for i in checked_tab:
+            for i in non_overlapped_tab:
                 count[(i.mention, i.etype, i.trans)] += 1
             for i, c in sorted(count.items(), key=lambda x: x[1], reverse=True):
                 logger.info('  %s | %s | %s | %s' % (i[0], i[1], i[2], c))
-                # print('%s\t%s\t%s\t%s\tp' % (i[0], i[1], c, i[2]))
-        logger.info('# of names added: %s' % (len(checked_tab)))
-        logger.info('# of total: %s' % (len(checked_tab) + len(to_add)))
+        logger.info('# of names added: %s' % (len(non_overlapped_tab)))
+        logger.info('# of names revised: %s' % (len(to_add)))
         return new_main_tab
     else:
         logger.info('TRUST ORIGINAL NAMES')
-        tab += checked_tab
+        tab += non_overlapped_tab
         if verbose:
             logger.info('verbose...')
-            for i in checked_tab:
+            for i in non_overlapped_tab:
                 count[(i.mention, i.etype, i.trans)] += 1
             for i, c in sorted(count.items(), key=lambda x: x[1], reverse=True):
                 logger.info('  %s | %s | %s | %s' % (i[0], i[1], i[2], c))
-                # print('%s\t%s\t%s\t%s\tp2' % (i[0], i[1], c, i[2]))
-        logger.info('# of names added: %s' % len(checked_tab))
+        logger.info('# of names added: %s' % len(non_overlapped_tab))
         return tab
 
 
@@ -228,7 +232,7 @@ def revise_etype(tab, gaz, verbose=False):
             logger.info('  %s | %s -> %s | %s' % (i[0], i[1], i[2], c))
 
 
-def remove_overlap(tab):
+def drop_overlapped_names(tab):
     new_tab = []
     tab_doc = util.get_tab_in_doc_level(tab)
     overlapped_pair = []
@@ -239,6 +243,7 @@ def remove_overlap(tab):
 
     dropped_tab = set()
     for i, j in overlapped_pair:
+        # Select the longer one
         if len(i.mention.split(' ')) < len(j.mention.split(' ')):
             dropped_tab.add(i)
         else:
@@ -260,40 +265,40 @@ def process(tab, pbio, outpath=None, sn=True, lower=False,
     if ppsm:
         logger.info('\n--- ADDING df poster authors ---')
         psm = util.read_psm(ppsm)
-        added_tab = add_poster_author(bio, psm)
-        logger.info('# of df poster authors found: %s' % (len(added_tab)))
-        tab = check_conflict(tab, added_tab, trust_new=True)
+        tab_to_add = add_poster_author(bio, psm)
+        logger.info('# of df poster authors found: %s' % (len(tab_to_add)))
+        tab = check_conflict(tab, tab_to_add, trust_new=True)
 
     if pgaz:
         logger.info('\n--- ADDING gazetterrs ---')
         if pdes:
-            des, des_tree = gaz, gaz_tree = util.read_gaz(pdes, lower=lower)
+            des, des_tree = util.read_gaz(pdes, lower=lower)
         else:
             des = None
         gaz, gaz_tree = util.read_gaz(pgaz, lower=lower)
         logger.info('loading gazetterrs...')
-        added_tab_t, added_tab_ut = add_gazetteer(bio, gaz, gaz_tree, des=des)
+        tab_to_add_p, tab_to_add_p2 = add_gazetteer(bio, gaz, gaz_tree, des=des)
         logger.info('checking trusted (p) names...')
-        added_tab_t = remove_overlap(added_tab_t)
+        tab_to_add_p = drop_overlapped_names(tab_to_add_p)
         logger.info('checking untrusted (p2) names...')
-        added_tab_ut = remove_overlap(added_tab_ut)
-        logger.info('-- trusted (p) names found: %s' % (len(added_tab_t)))
-        tab = check_conflict(tab, added_tab_t, trust_new=True, verbose=True)
-        logger.info('-- untrusted (p2) names found: %s' % (len(added_tab_ut)))
-        tab = check_conflict(tab, added_tab_ut, trust_new=False, verbose=True)
+        tab_to_add_p2 = drop_overlapped_names(tab_to_add_p2)
+        logger.info('-- trusted (p) names found: %s' % (len(tab_to_add_p)))
+        tab = check_conflict(tab, tab_to_add_p, trust_new=True, verbose=True)
+        logger.info('-- untrusted (p2) names found: %s' % (len(tab_to_add_p2)))
+        tab = check_conflict(tab, tab_to_add_p2, trust_new=False, verbose=True)
 
         logger.info('\n--- REVISING entity types ---')
         revise_etype(tab, gaz, verbose=True)
 
-    # if sn:
-    #     logger.info('\n--- ADDING social network names ---')
-    #     if psn:
-    #         gaz, gaz_tree = util.read_gaz(psn, lower=lower)
-    #     else:
-    #         gaz = None
-    #     added_tab = add_sn(bio, gaz=gaz)
-    #     logger.info('# of SN names found: %s' % (len(added_tab)))
-    #     tab = check_conflict(tab, added_tab, trust_new=True, verbose=True)
+    if sn:
+        logger.info('\n--- ADDING social network names ---')
+        if psn:
+            gaz, gaz_tree = util.read_gaz(psn, lower=lower)
+        else:
+            gaz = None
+        tab_to_add = add_sn(bio, gaz=gaz)
+        logger.info('# of SN names found: %s' % (len(tab_to_add)))
+        tab = check_conflict(tab, tab_to_add, trust_new=True, verbose=True)
 
     if outpath:
         with open(outpath, 'w') as fw:
