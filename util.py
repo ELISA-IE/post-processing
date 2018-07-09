@@ -1,5 +1,9 @@
 import re
 from collections import defaultdict
+import logging
+
+
+logger = logging.getLogger()
 
 
 class TacTab(object):
@@ -56,6 +60,7 @@ def read_bio(pbio):
             except AssertionError:
                 logger.error('line is less than two columns')
                 logger.error(repr(line))
+                exit()
             tok = ann[0]
             offset = ann[1]
             m = re.match('(.+):(\d+)-(\d+)', offset)
@@ -74,6 +79,7 @@ def get_tab_in_doc_level(tab):
 
 
 def read_gaz(pgaz, lower=False):
+    ETYPES = ['PER', 'ORG', 'GPE', 'LOC', '-']
     res = {}
     res_tree = {}
     with open(pgaz, 'r') as f:
@@ -92,6 +98,7 @@ def read_gaz(pgaz, lower=False):
                 additional_info = None
             if mention in res and not lower:
                 try:
+                    assert etype in ETYPES
                     assert res[mention][0] == etype
                     assert res[mention][1] == op
                 except:
@@ -121,7 +128,11 @@ def read_rule(prule, lower=False):
             if lower:
                 mention = mention.lower()
             etype = tmp[1]
-            assert etype in ETYPES
+            try:
+                assert etype in ETYPES
+            except AssertionError:
+                logger.error('bad rule: %s' % tmp)
+                exit()
             operate = (tmp[2], tmp[3:])
             assert operate[0] in OPS
             if operate[0] == 'mv':
