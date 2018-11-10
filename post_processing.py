@@ -1,10 +1,12 @@
 import logging
 import argparse
+from collections import defaultdict
+
 import util
 import remove_names
 import add_names
 import rule
-from collections import defaultdict
+
 
 
 def reassign_id(tab, runid='RPI_BLENDER'):
@@ -45,7 +47,6 @@ if __name__ == '__main__':
     logger.info('loading tab...')
     logger.info('%s' % args.ptab)
     tab = util.read_tab(args.ptab)
-    logger.info('done.')
     tab = remove_names.process(tab, ppsm=args.ppsm)
     tab = add_names.process(tab, args.pbio, lower=args.lower,
                             ppsm=args.ppsm, pgaz=args.pgaz,
@@ -56,3 +57,5 @@ if __name__ == '__main__':
     reassign_id(tab)
     with open(args.outpath, 'w') as fw:
         fw.write('\n'.join([str(i) for i in tab]))
+
+    logger.info('done.\n')

@@ -3,8 +3,9 @@ import sys
 import logging
 import string
 import argparse
-import util
 from collections import defaultdict
+
+import util
 
 
 logger = logging.getLogger()

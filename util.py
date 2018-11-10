@@ -79,7 +79,7 @@ def get_tab_in_doc_level(tab):
 
 
 def read_gaz(pgaz, lower=False):
-    ETYPES = ['PER', 'ORG', 'GPE', 'LOC', '-']
+    ETYPES = ['PER', 'ORG', 'GPE', 'LOC', 'FAC', '-', 'WEA', 'VEH']
     res = {}
     res_tree = {}
     with open(pgaz, 'r') as f:
@@ -99,10 +99,13 @@ def read_gaz(pgaz, lower=False):
             if mention in res and not lower:
                 try:
                     assert etype in ETYPES
+                except AssertionError:
+                    print('bad gaz type: %s' % (tmp))
+                try:
                     assert res[mention][0] == etype
                     assert res[mention][1] == op
-                except:
-                    print('bad gaz: %s' % tmp)
+                except AssertionError:
+                    print('bad gaz: %s, conflict with %s' % (tmp, res[mention]))
                     exit()
             res[mention] = (etype, op, additional_info)
 

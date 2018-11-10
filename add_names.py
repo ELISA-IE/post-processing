@@ -5,6 +5,7 @@ import argparse
 import string
 import itertools
 from collections import defaultdict
+
 import util
 from util import TacTab
 
@@ -161,8 +162,6 @@ def check_conflict(tab, tab_to_add, trust_new=False, verbose=False):
                 duplicate_tab.append((i, j))
                 overlapped = True
                 break
-            # if j.beg <= i.beg <= j.end or j.beg <= i.end <= j.end or \
-            #    i.beg <= j.beg <= i.end or i.beg <= j.end <= i.end:
             if max(i.beg, j.beg) < min(i.end, j.end):
                 overlapped_tab.append((i, j))
                 overlapped = True

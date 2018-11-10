@@ -2,10 +2,10 @@ import re
 import sys
 import logging
 import argparse
-import util
-from util import TacTab
 from collections import defaultdict
 
+import util
+from util import TacTab
 
 logger = logging.getLogger()
 logging.basicConfig(format='%(asctime)s: %(levelname)s: %(message)s')
@@ -28,6 +28,8 @@ def process(tab, prule, outpath=None, lower=False, verbose=True):
             else:
                 continue
             if op[0] == 'mv':
+                if i.etype == op[1][0]:
+                    continue
                 his = '%s: %s | %s -> %s' % (op[0], i.mention,
                                             i.etype, ' | '.join(op[1]))
                 i.etype = op[1][0]
