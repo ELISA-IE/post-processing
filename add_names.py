@@ -176,7 +176,8 @@ def check_conflicts_single_tab(tab):
     return new_tab
 
 
-def check_conflicts_duo_tab(tab, tab_to_add, trust_new=False, verbose=False):
+def check_conflicts_duo_tab(tab, tab_to_add, trust_new=False, must_longer=False,
+                            verbose=False):
     duplicate_tab = []
     overlapped_tab = []
     non_overlapped_tab = []
@@ -204,8 +205,18 @@ def check_conflicts_duo_tab(tab, tab_to_add, trust_new=False, verbose=False):
     if trust_new:
         logger.info('TRUST NEW NAMES')
         new_main_tab = []
-        to_add = list(set([i[0] for i in overlapped_tab]))
-        to_remove = [i[1].offset for i in overlapped_tab]
+
+        # to_add = list(set([i[0] for i in overlapped_tab]))
+        # to_remove = [i[1].offset for i in overlapped_tab]
+        to_add = []
+        to_remove = []
+        for i in overlapped_tab:
+            if must_longer:
+                if len(i[0].mention) < len(i[1].mention):
+                    continue
+            to_add.append(i[0])
+            to_remove.append(i[1].offset)
+        to_add = list(set(to_add))
         if verbose:
             logger.info('verbose...')
             overlapped_tab_count = defaultdict(int)
