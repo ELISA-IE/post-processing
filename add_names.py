@@ -176,7 +176,7 @@ def check_conflicts_single_tab(tab):
     return new_tab
 
 
-def check_conflicts_duo_tab(tab, tab_to_add, trust_new=False, must_longer=False,
+def check_conflicts_duo_tab(tab, tab_to_add, trust_new=False, must_longer=True,
                             verbose=False):
     duplicate_tab = []
     overlapped_tab = []
@@ -210,17 +210,18 @@ def check_conflicts_duo_tab(tab, tab_to_add, trust_new=False, must_longer=False,
         # to_remove = [i[1].offset for i in overlapped_tab]
         to_add = []
         to_remove = []
-        for i in overlapped_tab:
-            if must_longer:
-                if len(i[0].mention) < len(i[1].mention):
-                    continue
-            to_add.append(i[0])
-            to_remove.append(i[1].offset)
+        for i, j in overlapped_tab:
+            if must_longer and len(i.mention) < len(j.mention):
+                continue
+            to_add.append(i)
+            to_remove.append(j.offset)
         to_add = list(set(to_add))
         if verbose:
             logger.info('verbose...')
             overlapped_tab_count = defaultdict(int)
             for i, j in overlapped_tab:
+                if must_longer and len(i.mention) < len(j.mention):
+                    continue
                 m = "'%s' %s -> '%s' %s" % (j.mention, j.etype,
                                             i.mention, i.etype)
                 overlapped_tab_count[m] += 1
