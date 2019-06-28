@@ -148,17 +148,48 @@ def add_sn(bio, gaz=None):
     return res
 
 
-def check_conflict(tab, tab_to_add, trust_new=False, verbose=False):
+def check_conflicts_single_tab(tab):
+    new_tab = []
+    tab_doc = util.get_tab_in_doc_level(tab)
+    overlapped_pair = []
+    for docid in tab_doc:
+        for i, j in itertools.combinations(tab_doc[docid], 2):
+            if j.beg <= i.beg <= j.end or j.beg <= i.end <= j.end:
+                overlapped_pair.append((i, j))
+
+    dropped_tab = set()
+    for i, j in overlapped_pair:
+        # Select longer names
+        if len(i.mention.split(' ')) < len(j.mention.split(' ')):
+            dropped_tab.add(i)
+        else:
+            dropped_tab.add(j)
+
+    for i in tab:
+        if i not in dropped_tab:
+            new_tab.append(i)
+
+    logger.info('  # of names in the tab: %s' % len(tab))
+    logger.info('  checking conflicted names...')
+    logger.info('  %s overlapped matched names, select longer names' \
+                % (len(tab) - len(new_tab)))
+    return new_tab
+
+
+def check_conflicts_duo_tab(tab, tab_to_add, trust_new=False, verbose=False):
     duplicate_tab = []
     overlapped_tab = []
     non_overlapped_tab = []
     count = defaultdict(int)
-    logger.info('checking conflicted names...')
+    logger.info('  # of names in the original tab: %s' % len(tab))
+    logger.info('  # of names in the addtional tab: %s' % len(tab_to_add))
+    logger.info('  checking conflicted names...')
     tab_doc = util.get_tab_in_doc_level(tab)
     for i in tab_to_add:
         overlapped = False
         for j in tab_doc[i.docid]:
-            if (i.beg, i.end) == (j.beg, j.end) and i.etype == j.etype:
+            # if (i.beg, i.end) == (j.beg, j.end) and i.etype == j.etype:
+            if (i.beg, i.end) == (j.beg, j.end):
                 duplicate_tab.append((i, j))
                 overlapped = True
                 break
@@ -168,8 +199,8 @@ def check_conflict(tab, tab_to_add, trust_new=False, verbose=False):
         if not overlapped:
             non_overlapped_tab.append(i)
 
-    logger.info('# of duplicate names: %s' % (len(duplicate_tab)))
-    logger.info('# of overlapped names: %s' % (len(overlapped_tab)))
+    logger.info('  # of duplicate names: %s' % (len(duplicate_tab)))
+    logger.info('  # of overlapped names: %s' % (len(overlapped_tab)))
     if trust_new:
         logger.info('TRUST NEW NAMES')
         new_main_tab = []
@@ -179,16 +210,17 @@ def check_conflict(tab, tab_to_add, trust_new=False, verbose=False):
             logger.info('verbose...')
             overlapped_tab_count = defaultdict(int)
             for i, j in overlapped_tab:
-                overlapped_tab_count[(j.mention, j.trans,
-                                      i.mention, i.trans)] += 1
+                m = "'%s' %s -> '%s' %s" % (j.mention, j.etype,
+                                            i.mention, i.etype)
+                overlapped_tab_count[m] += 1
             for m, c in sorted(overlapped_tab_count.items(),
                                key=lambda x: x[1], reverse=True):
-                msg = "  '%s' %s -> '%s' %s | %s" % (m[0], m[1], m[2], m[3], c)
+                msg = '    %s | %s' % (m, c)
                 logger.info(msg)
         for i in tab:
             if i.offset not in to_remove:
                 new_main_tab.append(i)
-        logger.info('# of names revised: %s' % (len(to_add)))
+        logger.info('  # of names revised: %s' % (len(to_add)))
 
         new_main_tab += to_add
         new_main_tab += non_overlapped_tab
@@ -200,8 +232,8 @@ def check_conflict(tab, tab_to_add, trust_new=False, verbose=False):
                 count[(i.mention, i.etype, i.trans)] += 1
             for i, c in sorted(count.items(), key=lambda x: x[1], reverse=True):
                 logger.info('  %s | %s | %s | %s' % (i[0], i[1], i[2], c))
-        logger.info('# of names added: %s' % (len(non_overlapped_tab)))
-        logger.info('# of names revised: %s' % (len(to_add)))
+        logger.info('  # of names added: %s' % (len(non_overlapped_tab)))
+        logger.info('  # of names revised: %s' % (len(to_add)))
         return new_main_tab
     else:
         logger.info('TRUST ORIGINAL NAMES')
@@ -212,7 +244,7 @@ def check_conflict(tab, tab_to_add, trust_new=False, verbose=False):
                 count[(i.mention, i.etype, i.trans)] += 1
             for i, c in sorted(count.items(), key=lambda x: x[1], reverse=True):
                 logger.info('  %s | %s | %s | %s' % (i[0], i[1], i[2], c))
-        logger.info('# of names added: %s' % len(non_overlapped_tab))
+        logger.info('  # of names added: %s' % len(non_overlapped_tab))
         return tab
 
 
@@ -231,31 +263,6 @@ def revise_etype(tab, gaz, verbose=False):
             logger.info('  %s | %s -> %s | %s' % (i[0], i[1], i[2], c))
 
 
-def drop_overlapped_names(tab):
-    new_tab = []
-    tab_doc = util.get_tab_in_doc_level(tab)
-    overlapped_pair = []
-    for docid in tab_doc:
-        for i, j in itertools.combinations(tab_doc[docid], 2):
-            if j.beg <= i.beg <= j.end or j.beg <= i.end <= j.end:
-                overlapped_pair.append((i, j))
-
-    dropped_tab = set()
-    for i, j in overlapped_pair:
-        # Select the longer one
-        if len(i.mention.split(' ')) < len(j.mention.split(' ')):
-            dropped_tab.add(i)
-        else:
-            dropped_tab.add(j)
-
-    for i in tab:
-        if i not in dropped_tab:
-            new_tab.append(i)
-
-    logger.info('drop %s overlapped names' % (len(tab) - len(new_tab)))
-    return new_tab
-
-
 def process(tab, pbio, outpath=None, sn=True, lower=False,
             ppsm=None, pgaz=None, psn=None, pdes=None):
     bio = util.read_bio(pbio)
@@ -266,7 +273,7 @@ def process(tab, pbio, outpath=None, sn=True, lower=False,
         psm = util.read_psm(ppsm)
         tab_to_add = add_poster_author(bio, psm)
         logger.info('# of df poster authors found: %s' % (len(tab_to_add)))
-        tab = check_conflict(tab, tab_to_add, trust_new=True)
+        tab = check_conflicts_duo_tab(tab, tab_to_add, trust_new=True)
 
     if pgaz:
         logger.info('\n--- ADDING gazetterrs ---')
@@ -278,13 +285,15 @@ def process(tab, pbio, outpath=None, sn=True, lower=False,
         logger.info('loading gazetterrs...')
         tab_to_add_p, tab_to_add_p2 = add_gazetteer(bio, gaz, gaz_tree, des=des)
         logger.info('checking trusted (p) names...')
-        tab_to_add_p = drop_overlapped_names(tab_to_add_p)
+        tab_to_add_p = check_conflicts_single_tab(tab_to_add_p)
         logger.info('checking untrusted (p2) names...')
-        tab_to_add_p2 = drop_overlapped_names(tab_to_add_p2)
+        tab_to_add_p2 = check_conflicts_single_tab(tab_to_add_p2)
         logger.info('-- trusted (p) names found: %s' % (len(tab_to_add_p)))
-        tab = check_conflict(tab, tab_to_add_p, trust_new=True, verbose=True)
+        tab = check_conflicts_duo_tab(tab, tab_to_add_p, trust_new=True,
+                                      verbose=True)
         logger.info('-- untrusted (p2) names found: %s' % (len(tab_to_add_p2)))
-        tab = check_conflict(tab, tab_to_add_p2, trust_new=False, verbose=True)
+        tab = check_conflicts_duo_tab(tab, tab_to_add_p2, trust_new=False,
+                                      verbose=True)
 
         logger.info('\n--- REVISING entity types ---')
         revise_etype(tab, gaz, verbose=True)
@@ -297,7 +306,8 @@ def process(tab, pbio, outpath=None, sn=True, lower=False,
             gaz = None
         tab_to_add = add_sn(bio, gaz=gaz)
         logger.info('# of SN names found: %s' % (len(tab_to_add)))
-        tab = check_conflict(tab, tab_to_add, trust_new=True, verbose=True)
+        tab = check_conflicts_duo_tab(tab, tab_to_add, trust_new=True,
+                                      verbose=True)
 
     if outpath:
         with open(outpath, 'w') as fw:
