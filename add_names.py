@@ -36,7 +36,7 @@ def add_poster_author(bio, psm):
     return res
 
 
-def add_gazetteer(bio, gaz, gaz_tree, des=None):
+def add_gazetteer(bio, gaz, gaz_tree, des=None, mtype='NAM'):
     res_trusted = []
     res_untrusted = []
     count = 0
@@ -69,7 +69,7 @@ def add_gazetteer(bio, gaz, gaz_tree, des=None):
                     qid = 'GAZ_' + '{number:0{width}d}'.format(width=7,
                                                                number=count)
                     kbid = 'NIL'
-                    mtype = 'NAM'
+                    mtype = mtype
                     conf = '1.0'
                     trans = additional_info
                     tt = TacTab('Gazetterr', qid, mention, offset, kbid,
@@ -176,7 +176,7 @@ def check_conflicts_single_tab(tab):
     return new_tab
 
 
-def check_conflicts_duo_tab(tab, tab_to_add, trust_new=False, must_longer=True,
+def check_conflicts_duo_tab(tab, tab_to_add, trust_new=False, must_longer=False,
                             verbose=False):
     duplicate_tab = []
     overlapped_tab = []
@@ -276,7 +276,7 @@ def revise_etype(tab, gaz, verbose=False):
 
 
 def process(tab, pbio, outpath=None, sn=True, lower=False,
-            ppsm=None, pgaz=None, psn=None, pdes=None):
+            ppsm=None, pgaz=None, psn=None, pdes=None, mtype='NAM'):
     bio = util.read_bio(pbio)
     logger.info('\n------ ADDING NAMES ------')
 
@@ -295,7 +295,8 @@ def process(tab, pbio, outpath=None, sn=True, lower=False,
             des = None
         gaz, gaz_tree = util.read_gaz(pgaz, lower=lower)
         logger.info('loading gazetterrs...')
-        tab_to_add_p, tab_to_add_p2 = add_gazetteer(bio, gaz, gaz_tree, des=des)
+        tab_to_add_p, tab_to_add_p2 = add_gazetteer(bio, gaz, gaz_tree, des=des,
+                                                    mtype=mtype)
         logger.info('checking trusted (p) names...')
         tab_to_add_p = check_conflicts_single_tab(tab_to_add_p)
         logger.info('checking untrusted (p2) names...')
@@ -330,15 +331,16 @@ def process(tab, pbio, outpath=None, sn=True, lower=False,
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('ptab', type=str, help='path to tab')
     parser.add_argument('pbio', type=str, help='path to bio')
+    parser.add_argument('ptab', type=str, help='path to tab')
     parser.add_argument('outpath', type=str, help='output path')
     parser.add_argument('--ppsm', type=str, help='path to psm')
     parser.add_argument('--pgaz', type=str, help='path to gaz')
     parser.add_argument('--pdes', type=str, help='path to des')
+    parser.add_argument('--mtype', default='NAM', help='mention type')
     args = parser.parse_args()
 
     tab = util.read_tab(args.ptab)
     process(tab, args.pbio,
             ppsm=args.ppsm, pgaz=args.pgaz, pdes=args.pdes,
-            outpath=args.outpath)
+            outpath=args.outpath, mtype=args.mtype)
