@@ -177,7 +177,7 @@ def check_conflicts_single_tab(tab):
 
 
 def check_conflicts_duo_tab(tab, tab_to_add, trust_new=False, must_longer=False,
-                            verbose=False):
+                            verbose=False, verbose_thres=0):
     duplicate_tab = []
     overlapped_tab = []
     non_overlapped_tab = []
@@ -206,8 +206,6 @@ def check_conflicts_duo_tab(tab, tab_to_add, trust_new=False, must_longer=False,
         logger.info('TRUST NEW NAMES')
         new_main_tab = []
 
-        # to_add = list(set([i[0] for i in overlapped_tab]))
-        # to_remove = [i[1].offset for i in overlapped_tab]
         to_add = []
         to_remove = []
         for i, j in overlapped_tab:
@@ -243,6 +241,8 @@ def check_conflicts_duo_tab(tab, tab_to_add, trust_new=False, must_longer=False,
             for i in non_overlapped_tab:
                 count[(i.mention, i.etype, i.trans)] += 1
             for i, c in sorted(count.items(), key=lambda x: x[1], reverse=True):
+                if verbose_thres and c < verbose_thres:
+                    continue
                 logger.info('  %s | %s | %s | %s' % (i[0], i[1], i[2], c))
         logger.info('  # of names added: %s' % (len(non_overlapped_tab)))
         logger.info('  # of names revised: %s' % (len(to_add)))
@@ -255,6 +255,8 @@ def check_conflicts_duo_tab(tab, tab_to_add, trust_new=False, must_longer=False,
             for i in non_overlapped_tab:
                 count[(i.mention, i.etype, i.trans)] += 1
             for i, c in sorted(count.items(), key=lambda x: x[1], reverse=True):
+                if verbose_thres and c < verbose_thres:
+                    continue
                 logger.info('  %s | %s | %s | %s' % (i[0], i[1], i[2], c))
         logger.info('  # of names added: %s' % len(non_overlapped_tab))
         return tab
@@ -265,6 +267,8 @@ def revise_etype(tab, gaz, verbose=False):
     count = defaultdict(int)
     for i in tab:
         if i.mention in gaz and i.etype != gaz[i.mention][0]:
+            if gaz[i.mention][0] == '-':
+                continue
             count[(i.mention, i.etype, gaz[i.mention][0])] += 1
             i.etype = gaz[i.mention][0]
             tol += 1
@@ -320,7 +324,10 @@ def process(tab, pbio, outpath=None, sn=True, lower=False,
         tab_to_add = add_sn(bio, gaz=gaz)
         logger.info('# of SN names found: %s' % (len(tab_to_add)))
         tab = check_conflicts_duo_tab(tab, tab_to_add, trust_new=True,
-                                      verbose=True)
+                                      verbose=True, verbose_thres=5)
+
+        logger.info('\n--- REVISING entity types ---')
+        revise_etype(tab, gaz, verbose=True)
 
     if outpath:
         with open(outpath, 'w') as fw:

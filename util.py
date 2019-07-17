@@ -106,10 +106,10 @@ def read_gaz(pgaz, lower=False):
                     assert res[mention][0] == etype
                     assert res[mention][1] == op
                 except AssertionError:
-                    msg = 'ERROR: bad gaz: %s, conflict with %s' \
+                    msg = 'bad gaz: %s, conflict with %s, skip' \
                         % (tmp, res[mention])
-                    logger.error(msg)
-                    exit()
+                    logger.warn(msg)
+
             res[mention] = (etype, op, additional_info)
 
             toks = mention.split(' ') # TO-DO: no space langs
