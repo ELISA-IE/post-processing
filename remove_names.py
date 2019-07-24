@@ -72,6 +72,17 @@ def process(tab, outpath=None, ppsm=None, verbose=True):
             remove = True
             continue
 
+        # 6. Valid char range
+        valid_range = list(range(0, 127+1))
+        valid_range += list(range(int('0b00', 16), int('0b7f', 16)+1)) # Ordia
+
+        r = [False for c in i.mention if ord(c) not in valid_range]
+        if len(r) == len(i.mention):
+            his = 'INVALID CHAR %s | %s' % (i.mention, i.etype)
+            histories[his] += 1
+            remove = True
+            continue
+
         # 0. Rules
         if re.search('\d+\:\d+|\d+\:\d+\:\d+', i.mention):
             his = 'RULE %s | %s' % (i.mention, i.etype)
